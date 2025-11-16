@@ -10,7 +10,7 @@ Endpoints:
     - GET /dashboard: Retrieve admin dashboard statistics (Admin only)
 """
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, render_template, redirect, url_for
 from models.models import db, User, Patient, Doctor, Appointment
 from werkzeug.security import check_password_hash, generate_password_hash
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity, get_jwt
@@ -19,8 +19,11 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 # Create Blueprint for authentication routes
 auth_bp = Blueprint('auth_bp', __name__)
 
-@auth_bp.route('/register', methods=['POST'])
+@auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
+    # If the client requests the register page, serve the template
+    if request.method == 'GET':
+        return render_template('register.html')
     """
     Register a new patient user.
     
@@ -36,25 +39,53 @@ def register():
         - 201: Patient registered successfully
         - 400: Username already exists
     """
-    # Extract JSON data from request
-    data = request.get_json()
-    
-    # Check if username already exists in database
-    if User.query.filter_by(username=data['username']).first():
-        return jsonify({'msg': 'Username already exists'}), 400
+    # Accept either JSON or form-encoded data (helps when form posts from simple HTML page)
+    # Use silent=True to avoid raising a BadRequest when Content-Type is not JSON
+    data = request.get_json(silent=True) or request.form.to_dict()
+
+    # Required fields
+    email = data.get('email')
+    password = data.get('password')
+    if not email or not password:
+        return jsonify({'msg': 'Email and password are required'}), 400
+
+    # Use email as username if username not provided
+    username = data.get('username') or email.split('@')[0]
+
+    # Check if email already exists in database
+    if User.query.filter_by(email=email).first():
+        return jsonify({'msg': 'Email already registered'}), 400
+
+    # Check if username already exists in database and adjust if necessary
+    if User.query.filter_by(username=username).first():
+        # append a numeric suffix until unique
+        base = username
+        i = 1
+        while User.query.filter_by(username=f"{base}{i}").first():
+            i += 1
+        username = f"{base}{i}"
 
     # Hash the password for security
-    hashed_pw = generate_password_hash(data['password'])
-    
+    hashed_pw = generate_password_hash(password)
+
     # Create new User record with Patient role
-    user = User(username=data['username'], email=data['email'], password=hashed_pw, role='Patient')
+    user = User(username=username, email=email, password=hashed_pw, role='Patient')
     db.session.add(user)
     db.session.commit()
 
     # Create associated Patient record with additional information
-    patient = Patient(user_id=user.id, contact_info=data.get('contact_info'), age=data.get('age'), gender=data.get('gender'))
+    # Normalize optional patient fields
+    contact_info = data.get('contact_info') or data.get('phone') or None
+    age = data.get('age') or None
+    gender = data.get('gender') or None
+
+    patient = Patient(user_id=user.id, contact_info=contact_info, age=age, gender=gender)
     db.session.add(patient)
     db.session.commit()
+
+    # If the request was a browser form POST, redirect back to the login page
+    if request.method == 'POST' and request.form:
+        return redirect(url_for('auth_bp.login')) if False else redirect('/')
 
     return jsonify({'msg': 'Patient registered successfully'}), 201
 
@@ -83,6 +114,10 @@ def login():
 
     # If user exists and password matches, return a real user token
     if user and check_password_hash(user.password, data['password']):
+        # Check if user is blacklisted (email starts with [BLACKLISTED])
+        if user.email.startswith('[BLACKLISTED]'):
+            return jsonify({'msg': 'This account has been disabled by admin'}), 401
+        
         token = create_access_token(
             identity=str(user.id),
             additional_claims={'role': user.role, 'username': user.username}

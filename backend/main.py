@@ -2,6 +2,7 @@ import os
 from app_config import app  # Flask app configured with static and template folders
 from routes.auth_routes import auth_bp
 from routes.doctor_routes import doctor_bp
+from routes.admin_routes import admin_bp
 from flask import render_template, send_from_directory, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from models.models import User, Doctor, Patient, Appointment
@@ -10,6 +11,7 @@ from models.models import User, Doctor, Patient, Appointment
 # Register API blueprints
 app.register_blueprint(doctor_bp)
 app.register_blueprint(auth_bp)
+app.register_blueprint(admin_bp)
 
 
 # Debug endpoint to check server status

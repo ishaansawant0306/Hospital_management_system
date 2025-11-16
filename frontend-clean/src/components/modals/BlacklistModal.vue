@@ -3,18 +3,18 @@
     <div class="modal-dialog">
       <div class="modal-content">
         <div class="modal-header bg-warning text-dark">
-          <h5 class="modal-title">Blacklist {{ role }}</h5>
+          <h5 class="modal-title">Disable {{ role }}</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p>Enter reason for blacklisting <strong>{{ entity.name }}</strong>:</p>
-          <textarea v-model="reason" class="form-control" rows="3" required></textarea>
+          <p>Are you sure you want to disable <strong>{{ entity.name }}</strong>?</p>
+          <p class="text-muted small">This user will not be able to log in to the system.</p>
           <div v-if="error" class="alert alert-danger mt-2">{{ error }}</div>
           <div v-if="loading" class="text-center mt-2">
             <div class="spinner-border text-warning" role="status"></div>
           </div>
           <div v-else class="mt-3">
-            <button @click="submitBlacklist" class="btn btn-warning">Confirm Blacklist</button>
+            <button @click="submitBlacklist" class="btn btn-warning">Confirm Disable</button>
             <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
           </div>
         </div>
@@ -25,40 +25,28 @@
 
 <script>
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import api from '../../api/axiosConfig';
 
 export default {
   props: ['entity', 'role'],
   data() {
     return {
-      reason: '',
       loading: false,
       error: null
     };
   },
   methods: {
     async submitBlacklist() {
-      if (!this.reason || !this.reason.trim()) {
-        this.error = 'Reason is required';
-        return;
-      }
       this.loading = true;
       this.error = null;
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`/api/admin/blacklist-${this.role}/${this.entity.id}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ reason: this.reason })
+        // Need to get user_id - for doctors/patients, we need to look up the user_id
+        // Since the entity might not have user_id directly, we'll send the entity id and role
+        const user_id = this.entity.user_id || this.entity.id;
+        
+        await api.post('/api/admin/blacklist', { 
+          user_id: user_id
         });
-
-        if (!response.ok) {
-          let msg = 'Failed to blacklist';
-          try { msg = await response.text(); } catch (e) {}
-          throw new Error(msg || 'Failed to blacklist');
-        }
 
         // hide bootstrap modal if present
         const modalEl = document.getElementById('blacklistModal');
@@ -68,9 +56,10 @@ export default {
         }
 
         this.$emit('blacklisted');
-        alert(`${this.role} blacklisted successfully`);
+        alert(`${this.role} has been disabled successfully`);
       } catch (err) {
-        this.error = 'Error blacklisting entity';
+        this.error = err.response?.data?.error || err.response?.data?.msg || err.message || 'Error disabling user';
+        console.error('Blacklist error:', err);
       } finally {
         this.loading = false;
       }

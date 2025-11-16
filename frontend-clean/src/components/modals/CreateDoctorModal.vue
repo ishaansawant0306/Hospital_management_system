@@ -71,7 +71,7 @@
 <script>
 /* global bootstrap */
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
-import { getAuthHeaders } from '../../utils/tokenManager';
+import api from '../../api/axiosConfig';
 
 export default {
   name: 'CreateDoctorModal',
@@ -108,27 +108,12 @@ export default {
       this.success = null;
 
       try {
-        const headers = getAuthHeaders();
+        const response = await api.post('/api/admin/doctors', this.formData);
 
-        const response = await fetch('http://localhost:5000/api/admin/create-doctor', {
-          method: 'POST',
-          headers: {
-            ...headers,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(this.formData)
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to create doctor');
-        }
-
-        const data = await response.json();
         this.success = 'Doctor created successfully!';
 
         // Emit event to parent
-        this.$emit('created', data);
+        this.$emit('created', response.data);
 
         // Reset form
         this.resetForm();
@@ -142,7 +127,7 @@ export default {
         }, 1500);
 
       } catch (err) {
-        this.error = err.message || 'An error occurred while creating the doctor';
+        this.error = err.response?.data?.msg || err.response?.data?.error || err.message || 'An error occurred while creating the doctor';
         console.error('Create doctor error:', err);
       } finally {
         this.isLoading = false;

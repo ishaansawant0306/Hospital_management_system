@@ -139,24 +139,57 @@ export default {
   },
   methods: {
     onSearch() {
+      if (!this.searchQuery.trim()) {
+        this.fetchDashboardData();
+        return;
+      }
       console.log('Searching for:', this.searchQuery);
+      this.searchData();
+    },
+    async searchData() {
+      try {
+        const q = this.searchQuery.toLowerCase();
+        
+        // Search both doctors and patients
+        const [doctorRes, patientRes] = await Promise.all([
+          api.get(`/api/admin/search/doctors?q=${q}`).catch(() => ({ data: { doctors: [] } })),
+          api.get(`/api/admin/search/patients?q=${q}`).catch(() => ({ data: { patients: [] } }))
+        ]);
+
+        this.doctors = doctorRes.data.doctors || [];
+        this.patients = patientRes.data.patients || [];
+      } catch (err) {
+        console.error('Search error:', err);
+        this.error = `Search failed: ${err.response?.data?.error || err.message}`;
+      }
     },
     async fetchDashboardData() {
       this.loading = true;
       this.error = null;
       try {
         console.log('Fetching admin dashboard data...');
-        const response = await api.get('/dashboard');
-        console.log('Dashboard response:', response.data);
+        
+        // Fetch stats and all lists in parallel
+        const [statsRes, doctorsRes, patientsRes, appointmentsRes] = await Promise.all([
+          api.get('/api/admin/stats'),
+          api.get('/api/admin/doctors'),
+          api.get('/api/admin/patients'),
+          api.get('/api/admin/appointments')
+        ]);
+
+        console.log('Stats response:', statsRes.data);
+        console.log('Doctors response:', doctorsRes.data);
+        console.log('Patients response:', patientsRes.data);
+        console.log('Appointments response:', appointmentsRes.data);
         
         this.stats = {
-          patients: response.data.patients || 0,
-          doctors: response.data.doctors || 0,
-          appointments: response.data.appointments || 0,
+          patients: statsRes.data.total_patients || 0,
+          doctors: statsRes.data.total_doctors || 0,
+          appointments: statsRes.data.total_appointments || 0,
         };
-        this.doctors = response.data.doctorList || [];
-        this.patients = response.data.patientList || [];
-        this.appointments = response.data.appointmentList || [];
+        this.doctors = doctorsRes.data.doctors || [];
+        this.patients = patientsRes.data.patients || [];
+        this.appointments = appointmentsRes.data.appointments || [];
       } catch (err) {
         console.error('Dashboard error:', err);
         console.error('Error response:', err.response?.data);

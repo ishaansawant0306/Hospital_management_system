@@ -30,9 +30,10 @@
 <script>
 /* global bootstrap */
 import 'bootstrap/dist/js/bootstrap.bundle.min.js';
+import api from '../../api/axiosConfig';
 
 export default {
-  props: ['entity', 'role'], // role: 'doctor' or 'patient'
+  props: ['entity', 'role'], // role: 'Doctor' or 'Patient'
   data() {
     return {
       loading: false,
@@ -45,26 +46,12 @@ export default {
       this.error = null;
 
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/admin/delete-${this.role}/${this.entity.id}`, {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        // Build endpoint based on role
+        const endpoint = this.role === 'Doctor' 
+          ? `/api/admin/doctors/${this.entity.id}` 
+          : `/api/admin/patients/${this.entity.id}`;
 
-        if (!res.ok) {
-          // try to extract server message
-          let msg = 'Failed to delete entity';
-          try {
-            msg = await res.text();
-          } catch (e) {
-            // Unable to parse error response
-            console.warn('Failed to parse error message:', e);
-          }
-
-          throw new Error(msg || 'Failed to delete entity');
-        }
+        await api.delete(endpoint);
 
         // hide bootstrap modal if present
         const modalEl = document.getElementById('deleteConfirmationModal');
@@ -75,7 +62,8 @@ export default {
 
         this.$emit('deleted');
       } catch (err) {
-        this.error = err.message || 'Error deleting entity';
+        this.error = err.response?.data?.error || err.response?.data?.msg || err.message || 'Error deleting entity';
+        console.error('Delete error:', err);
       } finally {
         this.loading = false;
       }

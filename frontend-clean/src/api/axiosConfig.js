@@ -17,9 +17,9 @@ import axios from 'axios';
 import { getToken, clearToken } from '../utils/tokenManager';
 
 // Create axios instance
-// In production (when served by Flask from the same origin) use relative paths
-const isProd = process.env.NODE_ENV === 'production';
-const baseURL = isProd ? '' : (process.env.VUE_APP_API_URL || 'http://localhost:8000');
+// When served by Flask from the same origin, use relative paths (empty baseURL)
+// The app is always served from Flask, so always use relative paths
+const baseURL = '';
 
 const api = axios.create({
   baseURL,

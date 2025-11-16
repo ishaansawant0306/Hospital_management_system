@@ -29,29 +29,30 @@
 </template>
 
 <script>
+import api from '../../api/axiosConfig';
+
 export default {
   props: ['doctor'],
   data() {
     return {
-      editableDoctor: { ...this.doctor }
+      editableDoctor: { ...this.doctor },
+      error: null,
+      loading: false
     };
   },
   methods: {
     async submitEdit() {
+      this.loading = true;
+      this.error = null;
       try {
-        const token = localStorage.getItem('token');
-        await fetch(`/api/admin/update-doctor/${this.editableDoctor.id}`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify(this.editableDoctor)
-        });
+        await api.patch(`/api/admin/doctors/${this.editableDoctor.id}`, this.editableDoctor);
         this.$emit('updated');
         alert('Doctor updated successfully');
       } catch (err) {
-        alert('Error updating doctor');
+        this.error = err.response?.data?.error || err.response?.data?.msg || err.message || 'Error updating doctor';
+        console.error('Edit doctor error:', err);
+      } finally {
+        this.loading = false;
       }
     }
   }
