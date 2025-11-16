@@ -94,29 +94,22 @@ export default {
       this.success = false;
 
       try {
-        // const response = await fetch('http://localhost:5000/login', {
-        //   method: 'POST',
-        //   headers: { 'Content-Type': 'application/json' },
-        //   body: JSON.stringify({ email: this.email, password: this.password })
-        // });
+        // Call the backend /login endpoint for authentication
+        const response = await fetch('/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: this.email, password: this.password })
+        });
 
-        // if (!response.ok) {
-        //   const errorData = await response.json();
-        //   throw new Error(errorData.msg || 'Login failed');
-        // }
-
-        // const data = await response.json();
-        let data = null;
-        if (this.email === 'admin@test.com' && this.password === 'admin123') {
-          data = { access_token: 'dummy-admin', role: 'Admin', user_id: '1' };
-        } else if (this.email === 'doctor@test.com' && this.password === 'doctor123') {
-          data = { access_token: 'dummy-doctor', role: 'Doctor', user_id: '2' };
-        } else if (this.email === 'patient@test.com' && this.password === 'patient123') {
-          data = { access_token: 'dummy-patient', role: 'Patient', user_id: '3' };
-        } else {
-          throw new Error('Invalid email or password');
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.msg || 'Login failed');
         }
 
+        const data = await response.json();
+        console.log('Login successful, received:', data);
+
+        // Save token and user data to localStorage
         saveToken(data);
         this.success = true;
 

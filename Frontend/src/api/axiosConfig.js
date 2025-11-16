@@ -18,7 +18,7 @@ import { getToken, clearToken } from '@/utils/tokenManager';
 
 // Create axios instance
 const api = axios.create({
-  baseURL: 'http://localhost:5000', // Update with your backend URL
+  baseURL: 'http://localhost:8000', // Update with your backend URL
   timeout: 10000,
   headers: {
     'Content-Type': 'application/json'

@@ -100,7 +100,8 @@
 <script>
 import * as bootstrap from 'bootstrap';
 import 'bootstrap/dist/css/bootstrap.min.css';
-import { getAuthHeaders, clearToken, getUserRole } from '../utils/tokenManager';
+import api from '../api/axiosConfig';
+import { clearToken, getUserRole } from '../utils/tokenManager';
 import EditDoctorModal from './modals/EditDoctorModal.vue';
 import DeleteConfirmationModal from './modals/DeleteConfirmationModal.vue';
 import CreateDoctorModal from './modals/CreateDoctorModal.vue';
@@ -144,33 +145,31 @@ export default {
       this.loading = true;
       this.error = null;
       try {
-        const headers = getAuthHeaders();
-        const response = await fetch('http://localhost:5000/dashboard', {
-          method: 'GET',
-          headers,
-        });
-        if (!response.ok) {
-          if (response.status === 401) throw new Error('Token expired or invalid. Please login again.');
-          if (response.status === 403) throw new Error('Unauthorized: Admin access required');
-          throw new Error('Failed to fetch dashboard data');
-        }
-        const data = await response.json();
+        console.log('Fetching admin dashboard data...');
+        const response = await api.get('/dashboard');
+        console.log('Dashboard response:', response.data);
+        
         this.stats = {
-          patients: data.patients,
-          doctors: data.doctors,
-          appointments: data.appointments,
+          patients: response.data.patients || 0,
+          doctors: response.data.doctors || 0,
+          appointments: response.data.appointments || 0,
         };
-        this.doctors = data.doctorList || [];
-        this.patients = data.patientList || [];
-        this.appointments = data.appointmentList || [];
+        this.doctors = response.data.doctorList || [];
+        this.patients = response.data.patientList || [];
+        this.appointments = response.data.appointmentList || [];
       } catch (err) {
-        this.error = err.message || 'Error fetching dashboard data';
         console.error('Dashboard error:', err);
-        if (err.message.includes('Token expired') || err.message.includes('invalid')) {
+        console.error('Error response:', err.response?.data);
+        if (err.response?.status === 401) {
+          this.error = 'Token expired or invalid. Please login again.';
           setTimeout(() => {
             clearToken();
             this.$router.push('/login');
           }, 2000);
+        } else if (err.response?.status === 403) {
+          this.error = 'Unauthorized: Admin access required';
+        } else {
+          this.error = `Error fetching dashboard data: ${err.response?.data?.error || err.message}`;
         }
       } finally {
         this.loading = false;

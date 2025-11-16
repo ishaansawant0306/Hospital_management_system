@@ -1,87 +1,51 @@
 <template>
   <div class="dashboard-container">
+    <!-- Header -->
     <div class="header">
-      <h1>Doctor Dashboard</h1>
-      <button @click="logout" class="logout-btn">Logout</button>
+      <h2>Welcome Dr. {{ doctorName }}</h2>
+      <button @click="logout" class="logout-btn">logout</button>
     </div>
 
-    <div v-if="loading" class="loading">Loading dashboard data...</div>
-    <div v-else-if="error" class="error-message">{{ error }}</div>
+    <!-- Upcoming Appointments Section -->
+    <section class="appointments-section">
+      <h3>Upcoming Appointments</h3>
+      <table class="appointments-table">
+        <thead>
+          <tr>
+            <th>Sr No.</th>
+            <th>Patient Name</th>
+            <th>Patient History</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="(appt, index) in appointments" :key="appt.id">
+            <td>{{ index + 1 }}.</td>
+            <td>{{ appt.patientName }}</td>
+            <td><button class="btn-update">update</button></td>
+            <td>
+              <button @click="markCompleted(appt.id)" class="btn-complete">mark as complete</button>
+              <button @click="markCancelled(appt.id)" class="btn-cancel">cancel</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </section>
 
-    <div v-else>
-      <!-- Stats Section -->
-      <div class="dashboard-stats">
-        <div class="stat-card">
-          <h3>Today's Appointments</h3>
-          <p class="stat-number">{{ stats.todayAppointments }}</p>
-        </div>
-
-        <div class="stat-card">
-          <h3>Pending Treatments</h3>
-          <p class="stat-number">{{ stats.pendingTreatments }}</p>
-        </div>
-
-        <div class="stat-card">
-          <h3>Completed Cases</h3>
-          <p class="stat-number">{{ stats.completedCases }}</p>
+    <!-- Assigned Patients Section -->
+    <section class="patients-section">
+      <h3>Assigned Patients</h3>
+      <div class="patient-list">
+        <div v-for="p in patients" :key="p.id" class="patient-item">
+          <span>{{ p.name }}</span>
+          <button @click="viewHistory(p.id)" class="btn-view">view</button>
         </div>
       </div>
+      <button class="btn-provide">Provide Availability</button>
+    </section>
 
-      <!-- Appointments Table -->
-      <section class="appointments-section">
-        <h2>Upcoming Appointments (Next 7 Days)</h2>
-        <table class="appointments-table">
-          <thead>
-            <tr>
-              <th>Date</th>
-              <th>Time</th>
-              <th>Patient</th>
-              <th>Status</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="appt in appointments" :key="appt.id">
-              <td>{{ appt.date }}</td>
-              <td>{{ appt.time }}</td>
-              <td>{{ appt.patient.name }}</td>
-              <td>{{ appt.status }}</td>
-              <td>
-                <button @click="markCompleted(appt.id)">Complete</button>
-                <button @click="markCancelled(appt.id)">Cancel</button>
-                <button @click="openTreatmentModal(appt.id)">Add Treatment</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
-
-      <!-- Assigned Patients -->
-      <section class="patients-section">
-        <h2>Assigned Patients</h2>
-        <ul>
-          <li v-for="p in patients" :key="p.id">
-            {{ p.name }} ({{ p.age }} yrs, {{ p.gender }})
-            <button @click="viewHistory(p.id)">View History</button>
-          </li>
-        </ul>
-      </section>
-
-      <!-- Patient History -->
-      <div v-if="history.length > 0" class="history-section">
-        <h3>Patient History</h3>
-        <ul>
-          <li v-for="h in history" :key="h.appointment_id">
-            {{ h.date }} {{ h.time }} - {{ h.status }}
-            <span v-if="h.treatment">
-              | Diagnosis: {{ h.treatment.diagnosis }}
-            </span>
-          </li>
-        </ul>
-      </div>
-
-      <!-- Treatment Modal -->
-      <div v-if="showTreatmentModal" class="modal">
+    <!-- Treatment Modal -->
+    <div v-if="showTreatmentModal" class="modal">
         <h3>Add Treatment</h3>
         <form @submit.prevent="submitTreatment">
           <label>Diagnosis:</label>
@@ -97,113 +61,77 @@
           <button @click="closeTreatmentModal">Cancel</button>
         </form>
       </div>
-    </div>
   </div>
 </template>
 
 <script>
-import axios from "axios";
-import { clearToken, getUserRole } from "../utils/tokenManager";
+import { clearToken, getUserRole, getToken } from "../utils/tokenManager";
 
 export default {
   name: "DoctorDashboard",
   data() {
     return {
+      doctorName: "Dr. Abcde",
       stats: {
-        todayAppointments: 0,
-        pendingTreatments: 0,
-        completedCases: 0,
+        todayAppointments: 3,
+        pendingTreatments: 5,
+        completedCases: 12,
       },
-      appointments: [],
-      patients: [],
+      appointments: [
+        { id: 1, sr_no: 1, patientName: "John Doe", date: "2024-01-15", time: "10:00 AM" },
+        { id: 2, sr_no: 2, patientName: "Jane Smith", date: "2024-01-15", time: "11:00 AM" },
+        { id: 3, sr_no: 3, patientName: "Bob Johnson", date: "2024-01-16", time: "2:00 PM" },
+      ],
+      patients: [
+        { id: 1, name: "John Doe", lastVisit: "2024-01-10" },
+        { id: 2, name: "Jane Smith", lastVisit: "2024-01-12" },
+        { id: 3, name: "Bob Johnson", lastVisit: "2024-01-14" },
+      ],
       history: [],
-      loading: true,
-      error: null,
       showTreatmentModal: false,
       selectedAppointmentId: null,
       treatment: { diagnosis: "", prescription: "", notes: "" },
     };
   },
-  async mounted() {
-    if (getUserRole() !== "Doctor") {
-      this.error = "Unauthorized: Doctor access required";
+  mounted() {
+    const role = getUserRole();
+    const token = getToken();
+    
+    console.log("=== Doctor Dashboard Mounted ===");
+    console.log("User Role:", role);
+    console.log("Token exists:", !!token);
+    
+    if (role !== "Doctor") {
+      console.error("Invalid role:", role);
       this.$router.push("/login");
       return;
     }
-    this.fetchDashboard();
+    
+    if (!token) {
+      console.error("No token in localStorage");
+      this.$router.push("/login");
+      return;
+    }
   },
   methods: {
-    async fetchDashboard() {
-      try {
-        const res = await axios.get("/doctor/dashboard", {
-          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-        });
-
-        this.appointments = res.data.appointments_next_7_days;
-        this.patients = res.data.assigned_patients;
-
-        // Calculate stats dynamically
-        const today = new Date().toISOString().split("T")[0];
-        this.stats.todayAppointments = this.appointments.filter(
-          (a) => a.date === today
-        ).length;
-
-        this.stats.pendingTreatments = this.appointments.filter(
-          (a) => a.status === "Booked"
-        ).length;
-
-        this.stats.completedCases = this.appointments.filter(
-          (a) => a.status === "Completed"
-        ).length;
-
-        this.loading = false;
-      } catch (err) {
-        this.error = "Failed to load dashboard data";
-        this.loading = false;
-      }
-    },
-    async markCompleted(id) {
-      await axios.post(
-        "/doctor/appointment/update-status",
-        { appointment_id: id, status: "Completed" },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
-      );
-      this.fetchDashboard();
-    },
-    async markCancelled(id) {
-      await axios.post(
-        "/doctor/appointment/update-status",
-        { appointment_id: id, status: "Cancelled" },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
-      );
-      this.fetchDashboard();
-    },
     openTreatmentModal(id) {
       this.selectedAppointmentId = id;
       this.showTreatmentModal = true;
     },
     closeTreatmentModal() {
       this.showTreatmentModal = false;
+      this.treatment = { diagnosis: "", prescription: "", notes: "" };
     },
-    async submitTreatment() {
-      await axios.post(
-        "/doctor/treatment/add",
-        {
-          appointment_id: this.selectedAppointmentId,
-          diagnosis: this.treatment.diagnosis,
-          prescription: this.treatment.prescription,
-          notes: this.treatment.notes,
-        },
-        { headers: { Authorization: `Bearer ${localStorage.getItem("token")}` } }
-      );
+    submitTreatment() {
+      console.log("Treatment submitted:", this.treatment);
       this.closeTreatmentModal();
-      this.fetchDashboard();
     },
-    async viewHistory(patientId) {
-      const res = await axios.get(`/doctor/patient/history/${patientId}`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-      });
-      this.history = res.data.medical_history;
+    viewHistory(patientId) {
+      console.log("Viewing history for patient:", patientId);
+      this.history = [
+        { id: 1, date: "2024-01-10", notes: "Regular checkup - patient in good health" },
+        { id: 2, date: "2024-01-05", notes: "Follow-up appointment" },
+      ];
     },
     logout() {
       clearToken();
