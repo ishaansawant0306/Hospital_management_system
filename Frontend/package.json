@@ -17,6 +17,9 @@
     "vue-router": "^4.6.3"
   },
   "devDependencies": {
-    "@vue/cli-service": "^5.0.9"
+    "@babel/core": "^7.28.5",
+    "@babel/preset-env": "^7.28.5",
+    "@vue/cli-service": "^5.0.9",
+    "babel-loader": "^10.0.0"
   }
 }

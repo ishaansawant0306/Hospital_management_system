@@ -42,16 +42,24 @@ export default {
       this.error = null;
 
       try {
-        const token = localStorage.getItem('token');
-        const res = await fetch(`/api/admin/delete-${this.role}/${this.entity.id}`, {
+        const headers = { 'Authorization': `Bearer ${localStorage.getItem('access_token')}` };
+
+        // Determine correct endpoint based on role
+        let endpoint = null;
+        if (this.role === 'doctor') {
+          endpoint = `http://localhost:5000/api/admin/doctors/${this.entity.id}`;
+        } else if (this.role === 'patient') {
+          endpoint = `http://localhost:5000/api/admin/patients/${this.entity.id}`;
+        } else {
+          throw new Error('Unknown role for deletion');
+        }
+
+        const res = await fetch(endpoint, {
           method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
+          headers: headers
         });
 
         if (!res.ok) {
-          // try to extract server message
           let msg = 'Failed to delete entity';
           try { msg = await res.text(); } catch (e) {}
           throw new Error(msg || 'Failed to delete entity');

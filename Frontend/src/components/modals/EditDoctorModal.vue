@@ -29,24 +29,39 @@
 </template>
 
 <script>
+import { getAuthHeaders } from '@/utils/tokenManager';
+
 export default {
   props: ['doctor'],
   methods: {
     async submitEdit() {
       try {
-        const token = localStorage.getItem('token');
-        await fetch(`/api/admin/update-doctor/${this.doctor.id}`, {
-          method: 'PUT',
+        const headers = getAuthHeaders();
+
+        const res = await fetch(`http://localhost:5000/api/admin/doctors/${this.doctor.id}`, {
+          method: 'PATCH',
           headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
+            ...headers
           },
           body: JSON.stringify(this.doctor)
         });
+
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.msg || err.error || 'Failed to update doctor');
+        }
+
+        // Hide modal if bootstrap available
+        const modalEl = document.getElementById('editDoctorModal');
+        if (modalEl && typeof bootstrap !== 'undefined') {
+          const bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
+          bsModal.hide();
+        }
+
         this.$emit('updated');
         alert('Doctor updated successfully');
       } catch (err) {
-        alert('Error updating doctor');
+        alert(err.message || 'Error updating doctor');
       }
     }
   }

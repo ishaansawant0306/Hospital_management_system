@@ -7,12 +7,14 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p>Enter reason for blacklisting <strong>{{ entity.name }}</strong>:</p>
-          <textarea v-model="reason" class="form-control" rows="3" required></textarea>
+          <p>Are you sure you want to blacklist <strong>{{ entity.name }}</strong>?</p>
+
           <div v-if="error" class="alert alert-danger mt-2">{{ error }}</div>
+
           <div v-if="loading" class="text-center mt-2">
             <div class="spinner-border text-warning" role="status"></div>
           </div>
+
           <div v-else class="mt-3">
             <button @click="submitBlacklist" class="btn btn-warning">Confirm Blacklist</button>
             <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -24,38 +26,42 @@
 </template>
 
 <script>
+import { getAuthHeaders } from '@/utils/tokenManager';
+
 export default {
   props: ['entity', 'role'],
   data() {
     return {
-      reason: '',
       loading: false,
       error: null
     };
   },
   methods: {
     async submitBlacklist() {
-      if (!this.reason || !this.reason.trim()) {
-        this.error = 'Reason is required';
-        return;
-      }
       this.loading = true;
       this.error = null;
+
       try {
-        const token = localStorage.getItem('token');
-        const response = await fetch(`/api/admin/blacklist-${this.role}/${this.entity.id}`, {
+        const headers = getAuthHeaders();
+
+        // Build correct endpoint based on role
+        let endpoint = null;
+        if (this.role === 'doctor') {
+          endpoint = `http://localhost:5000/api/admin/blacklist/doctor/${this.entity.id}`;
+        } else if (this.role === 'patient') {
+          endpoint = `http://localhost:5000/api/admin/blacklist/patient/${this.entity.id}`;
+        } else {
+          throw new Error('Unknown role for blacklist');
+        }
+
+        const response = await fetch(endpoint, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          },
-          body: JSON.stringify({ reason: this.reason })
+          headers
         });
 
         if (!response.ok) {
-          let msg = 'Failed to blacklist';
-          try { msg = await response.text(); } catch (e) {}
-          throw new Error(msg || 'Failed to blacklist');
+          const err = await response.json().catch(() => ({}));
+          throw new Error(err.msg || err.error || 'Failed to blacklist');
         }
 
         // hide bootstrap modal if present
@@ -68,7 +74,8 @@ export default {
         this.$emit('blacklisted');
         alert(`${this.role} blacklisted successfully`);
       } catch (err) {
-        this.error = 'Error blacklisting entity';
+        this.error = err.message || 'Error blacklisting entity';
+        console.error('Blacklist error:', err);
       } finally {
         this.loading = false;
       }
@@ -81,5 +88,13 @@ export default {
 .spinner-border {
   width: 1.5rem;
   height: 1.5rem;
+}
+
+.modal-header {
+  border-bottom: 2px solid #ffc107;
+}
+
+.alert {
+  border-radius: 4px;
 }
 </style>

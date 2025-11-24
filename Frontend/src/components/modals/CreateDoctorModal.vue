@@ -108,18 +108,17 @@ export default {
       try {
         const headers = getAuthHeaders();
 
-        const response = await fetch('http://localhost:5000/api/admin/create-doctor', {
+        const response = await fetch('http://localhost:5000/api/admin/doctors', {
           method: 'POST',
           headers: {
-            ...headers,
-            'Content-Type': 'application/json'
+            ...headers
           },
           body: JSON.stringify(this.formData)
         });
 
         if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.message || 'Failed to create doctor');
+          const errorData = await response.json().catch(() => ({}));
+          throw new Error(errorData.msg || errorData.error || 'Failed to create doctor');
         }
 
         const data = await response.json();

@@ -76,7 +76,7 @@ def fallback(path):
 
 
 if __name__ == '__main__':
-    # Run the unified server on port 8000 for production/single-port dev
-    port = int(os.environ.get('PORT', 8000))
+    # Run the unified server on port 5000 for production/single-port dev
+    port = int(os.environ.get('PORT', 5000))
     debug_flag = os.environ.get('FLASK_DEBUG', '0') in ('1', 'true', 'True')
     app.run(debug=debug_flag, port=port)

@@ -44,6 +44,7 @@ def list_doctors():
         for doc in doctors:
             doctor_list.append({
                 'id': doc.id,
+                'user_id': doc.user_id,
                 'name': doc.user.username if doc.user else 'N/A',
                 'email': doc.user.email if doc.user else 'N/A',
                 'specialization': doc.specialization,
@@ -113,6 +114,7 @@ def create_doctor():
             'msg': 'Doctor created successfully',
             'doctor': {
                 'id': doctor.id,
+                'user_id': user.id,
                 'name': user.username,
                 'email': user.email,
                 'specialization': specialization,
@@ -157,6 +159,7 @@ def update_doctor(doctor_id):
             'msg': 'Doctor updated successfully',
             'doctor': {
                 'id': doctor.id,
+                'user_id': doctor.user_id,
                 'name': doctor.user.username,
                 'email': doctor.user.email,
                 'specialization': doctor.specialization,
@@ -171,7 +174,7 @@ def update_doctor(doctor_id):
 @admin_bp.route('/doctors/<int:doctor_id>', methods=['DELETE'])
 @jwt_required()
 def delete_doctor(doctor_id):
-    """Delete a doctor and associated user."""
+    """Delete a doctor and associated user, plus related appointments."""
     claims = get_jwt()
     if not check_admin_role(claims):
         return jsonify({'error': 'Unauthorized: Admin only'}), 403
@@ -182,6 +185,11 @@ def delete_doctor(doctor_id):
             return jsonify({'error': 'Doctor not found'}), 404
 
         user_id = doctor.user_id
+        
+        # First delete all appointments associated with this doctor
+        Appointment.query.filter_by(doctor_id=doctor_id).delete()
+        
+        # Delete the doctor record
         db.session.delete(doctor)
         
         # Also delete the associated user
@@ -215,6 +223,7 @@ def list_patients():
         for pat in patients:
             patient_list.append({
                 'id': pat.id,
+                'user_id': pat.user_id,
                 'name': pat.user.username if pat.user else 'N/A',
                 'email': pat.user.email if pat.user else 'N/A',
                 'age': pat.age,
@@ -259,6 +268,7 @@ def update_patient(patient_id):
             'msg': 'Patient updated successfully',
             'patient': {
                 'id': patient.id,
+                'user_id': patient.user_id,
                 'name': patient.user.username,
                 'email': patient.user.email,
                 'age': patient.age,
@@ -274,7 +284,7 @@ def update_patient(patient_id):
 @admin_bp.route('/patients/<int:patient_id>', methods=['DELETE'])
 @jwt_required()
 def delete_patient(patient_id):
-    """Delete a patient and associated user."""
+    """Delete a patient and associated user, plus related appointments."""
     claims = get_jwt()
     if not check_admin_role(claims):
         return jsonify({'error': 'Unauthorized: Admin only'}), 403
@@ -285,6 +295,11 @@ def delete_patient(patient_id):
             return jsonify({'error': 'Patient not found'}), 404
 
         user_id = patient.user_id
+        
+        # First delete all appointments associated with this patient
+        Appointment.query.filter_by(patient_id=patient_id).delete()
+        
+        # Delete the patient record
         db.session.delete(patient)
         
         # Also delete the associated user
@@ -381,6 +396,48 @@ def update_appointment(appt_id):
         return jsonify({'error': str(e)}), 500
 
 
+@admin_bp.route('/appointments/<int:appt_id>/detail', methods=['GET'])
+@jwt_required()
+def get_appointment_detail(appt_id):
+    """Get single appointment with patient and doctor details."""
+    claims = get_jwt()
+    if not check_admin_role(claims):
+        return jsonify({'error': 'Unauthorized: Admin only'}), 403
+
+    try:
+        appointment = Appointment.query.get(appt_id)
+        if not appointment:
+            return jsonify({'error': 'Appointment not found'}), 404
+
+        # Build appointment response with full details
+        appt_detail = {
+            'id': appointment.id,
+            'patient': {
+                'id': appointment.patient_id,
+                'name': appointment.patient.user.username if appointment.patient and appointment.patient.user else 'N/A',
+                'email': appointment.patient.user.email if appointment.patient and appointment.patient.user else 'N/A',
+                'age': appointment.patient.age if appointment.patient else None,
+                'gender': appointment.patient.gender if appointment.patient else None,
+                'contact_info': appointment.patient.contact_info if appointment.patient else 'N/A'
+            },
+            'doctor': {
+                'id': appointment.doctor_id,
+                'name': appointment.doctor.user.username if appointment.doctor and appointment.doctor.user else 'N/A',
+                'email': appointment.doctor.user.email if appointment.doctor and appointment.doctor.user else 'N/A',
+                'specialization': appointment.doctor.specialization if appointment.doctor else 'N/A'
+            },
+            'date': appointment.date.isoformat() if appointment.date else None,
+            'time': appointment.time.isoformat() if appointment.time else None,
+            'reason': appointment.reason if hasattr(appointment, 'reason') else 'N/A',
+            'status': appointment.status,
+            'notes': appointment.notes if hasattr(appointment, 'notes') else 'N/A'
+        }
+
+        return jsonify({'appointment': appt_detail}), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @admin_bp.route('/appointments/<int:appt_id>', methods=['DELETE'])
 @jwt_required()
 def delete_appointment(appt_id):
@@ -431,6 +488,7 @@ def search_doctors():
         for doc in doctors:
             doctor_list.append({
                 'id': doc.id,
+                'user_id': doc.user_id,
                 'name': doc.user.username if doc.user else 'N/A',
                 'email': doc.user.email if doc.user else 'N/A',
                 'specialization': doc.specialization,
@@ -467,6 +525,7 @@ def search_patients():
         for pat in patients:
             patient_list.append({
                 'id': pat.id,
+                'user_id': pat.user_id,
                 'name': pat.user.username if pat.user else 'N/A',
                 'email': pat.user.email if pat.user else 'N/A',
                 'age': pat.age,
@@ -482,6 +541,116 @@ def search_patients():
 # ============================================================================
 # BLACKLIST ENDPOINTS
 # ============================================================================
+
+@admin_bp.route('/blacklist/doctor/<int:doctor_id>', methods=['POST'])
+@jwt_required()
+def blacklist_doctor(doctor_id):
+    """Blacklist a doctor by doctor_id."""
+    claims = get_jwt()
+    if not check_admin_role(claims):
+        return jsonify({'error': 'Unauthorized: Admin only'}), 403
+
+    try:
+        doctor = Doctor.query.get(doctor_id)
+        if not doctor:
+            return jsonify({'error': 'Doctor not found'}), 404
+
+        user = doctor.user
+        if not user:
+            return jsonify({'error': 'Associated user not found'}), 404
+
+        # Mark user as blacklisted by prefixing email
+        if not user.email.startswith('[BLACKLISTED]'):
+            user.email = f"[BLACKLISTED]{user.email}"
+            db.session.commit()
+
+        return jsonify({'msg': f'Doctor {user.username} has been blacklisted'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/blacklist/patient/<int:patient_id>', methods=['POST'])
+@jwt_required()
+def blacklist_patient(patient_id):
+    """Blacklist a patient by patient_id."""
+    claims = get_jwt()
+    if not check_admin_role(claims):
+        return jsonify({'error': 'Unauthorized: Admin only'}), 403
+
+    try:
+        patient = Patient.query.get(patient_id)
+        if not patient:
+            return jsonify({'error': 'Patient not found'}), 404
+
+        user = patient.user
+        if not user:
+            return jsonify({'error': 'Associated user not found'}), 404
+
+        # Mark user as blacklisted by prefixing email
+        if not user.email.startswith('[BLACKLISTED]'):
+            user.email = f"[BLACKLISTED]{user.email}"
+            db.session.commit()
+
+        return jsonify({'msg': f'Patient {user.username} has been blacklisted'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/blacklist/doctor/<int:doctor_id>', methods=['DELETE'])
+@jwt_required()
+def unblacklist_doctor(doctor_id):
+    """Remove a doctor from blacklist."""
+    claims = get_jwt()
+    if not check_admin_role(claims):
+        return jsonify({'error': 'Unauthorized: Admin only'}), 403
+
+    try:
+        doctor = Doctor.query.get(doctor_id)
+        if not doctor:
+            return jsonify({'error': 'Doctor not found'}), 404
+
+        user = doctor.user
+        if not user:
+            return jsonify({'error': 'Associated user not found'}), 404
+
+        if user.email.startswith('[BLACKLISTED]'):
+            user.email = user.email.replace('[BLACKLISTED]', '', 1)
+            db.session.commit()
+
+        return jsonify({'msg': f'Doctor {user.username} has been unblacklisted'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
+
+@admin_bp.route('/blacklist/patient/<int:patient_id>', methods=['DELETE'])
+@jwt_required()
+def unblacklist_patient(patient_id):
+    """Remove a patient from blacklist."""
+    claims = get_jwt()
+    if not check_admin_role(claims):
+        return jsonify({'error': 'Unauthorized: Admin only'}), 403
+
+    try:
+        patient = Patient.query.get(patient_id)
+        if not patient:
+            return jsonify({'error': 'Patient not found'}), 404
+
+        user = patient.user
+        if not user:
+            return jsonify({'error': 'Associated user not found'}), 404
+
+        if user.email.startswith('[BLACKLISTED]'):
+            user.email = user.email.replace('[BLACKLISTED]', '', 1)
+            db.session.commit()
+
+        return jsonify({'msg': f'Patient {user.username} has been unblacklisted'}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 
 @admin_bp.route('/blacklist', methods=['POST'])
 @jwt_required()
@@ -571,3 +740,4 @@ def dashboard_stats():
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
