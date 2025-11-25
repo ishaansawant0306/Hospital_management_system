@@ -6,6 +6,40 @@ from models.models import db, User, Doctor, Patient, Appointment
 
 doctor_bp = Blueprint('doctor_bp', __name__, url_prefix='/doctor')
 
+from werkzeug.security import check_password_hash
+from flask_jwt_extended import create_access_token
+
+@doctor_bp.route('/login', methods=['POST'])
+def doctor_login():
+    """Doctor login using email + password."""
+    data = request.get_json()
+    email = data.get('email')
+    password = data.get('password')
+
+    if not email or not password:
+        return jsonify({'msg': 'Email and password are required'}), 400
+
+    # Find user with role Doctor
+    user = User.query.filter_by(email=email, role='Doctor').first()
+    if not user or not check_password_hash(user.password, password):
+        return jsonify({'msg': 'Invalid credentials'}), 401
+
+    # Create JWT token
+    access_token = create_access_token(identity=user.id, additional_claims={'role': user.role})
+
+    return jsonify({
+        'msg': 'Login successful',
+        'access_token': access_token,
+        'doctor': {
+            'id': user.doctor.id,
+            'user_id': user.id,
+            'name': user.username,
+            'email': user.email,
+            'specialization': user.doctor.specialization,
+            'availability': user.doctor.availability
+        }
+    }), 200
+
 
 @doctor_bp.route('/dashboard', methods=['GET'])
 @jwt_required()

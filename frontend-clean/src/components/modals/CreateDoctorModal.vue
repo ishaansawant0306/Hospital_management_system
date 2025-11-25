@@ -21,6 +21,30 @@
             </div>
 
             <div class="mb-3">
+              <label for="doctorEmail" class="form-label">Email</label>
+              <input
+                v-model="formData.email"
+                id="doctorEmail"
+                type="email"
+                class="form-control"
+                placeholder="Enter doctor's email"
+                required
+              />
+            </div>
+
+            <div class="mb-3">
+              <label for="doctorPassword" class="form-label">Password</label>
+              <input
+                v-model="formData.password"
+                id="doctorPassword"
+                type="password"
+                class="form-control"
+                placeholder="Enter password"
+                required
+              />
+            </div>
+
+            <div class="mb-3">
               <label for="doctorSpecialization" class="form-label">Specialization</label>
               <input
                 v-model="formData.specialization"
@@ -79,6 +103,8 @@ export default {
     return {
       formData: {
         name: '',
+        email: '',
+        password: '',
         specialization: '',
         availability: ''
       },
@@ -92,6 +118,14 @@ export default {
       // Validation
       if (!this.formData.name.trim()) {
         this.error = 'Doctor name is required';
+        return;
+      }
+      if (!this.formData.email.trim()) {
+        this.error = 'Email is required';
+        return;
+      }
+      if (!this.formData.password.trim()) {
+        this.error = 'Password is required';
         return;
       }
       if (!this.formData.specialization.trim()) {
@@ -136,6 +170,8 @@ export default {
     resetForm() {
       this.formData = {
         name: '',
+        email: '',
+        password: '',
         specialization: '',
         availability: ''
       };
@@ -146,6 +182,12 @@ export default {
   watch: {
     // Clear errors when user starts typing
     'formData.name'() {
+      if (this.error) this.error = null;
+    },
+    'formData.email'() {
+      if (this.error) this.error = null;
+    },
+    'formData.password'() {
       if (this.error) this.error = null;
     },
     'formData.specialization'() {

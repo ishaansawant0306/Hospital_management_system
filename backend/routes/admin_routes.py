@@ -71,19 +71,23 @@ def create_doctor():
         # Validate required fields
         name = data.get('name')
         email = data.get('email')
-        password = data.get('password', 'doctor123')  # Default password if not provided
+        password = data.get('password')  # NOW REQUIRED
         specialization = data.get('specialization')
         availability = data.get('availability', '{}')
 
+        # Check all required fields
         if not name or not specialization:
             return jsonify({'msg': 'Name and specialization are required'}), 400
+        
+        if not email:
+            return jsonify({'msg': 'Email is required'}), 400
+            
+        if not password:
+            return jsonify({'msg': 'Password is required'}), 400
 
         # Check if email already exists
-        if email and User.query.filter_by(email=email).first():
+        if User.query.filter_by(email=email).first():
             return jsonify({'msg': 'Email already exists'}), 400
-
-        # Auto-generate email if not provided
-        email = email or f"{name.lower().replace(' ', '')}@hospital.com"
 
         # Generate base username from name
         username = name.lower().replace(' ', '_')
@@ -740,7 +744,7 @@ def dashboard_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
-@app.route('/api/debug/button', methods=['POST'])
+@admin_bp.route('/api/debug/button', methods=['POST'])
 def debug_button():
     data = request.json
     print("\n=== BUTTON CLICKED ===")
