@@ -91,70 +91,54 @@ def register():
 
 @auth_bp.route('/login', methods=['POST'])
 def login():
-    """
-    Authenticate user with username and password.
-    
-    Expects JSON payload with:
-        - email (str): User's email address
-        - password (str): User's password
-    
-    Returns:
-        - 200: Login successful with JWT token and user role
-        - 401: Invalid email or password
-    """
-    # Extract JSON data from request
-    data = request.get_json()
+    try:
+        data = request.get_json()
+        if not data.get('email') or not data.get('password'):
+            return jsonify({'msg': 'Email and password are required'}), 400
 
-    # Validate required fields
-    if not data.get('email') or not data.get('password'):
-        return jsonify({'msg': 'Email and password are required'}), 400
+        user = User.query.filter_by(email=data['email']).first()
+        if user and check_password_hash(user.password, data['password']):
+            if user.is_blacklisted:
+                return jsonify({'msg': 'Your account has been blocked by Admin'}), 403
 
-    # Query database for user with matching email
-    user = User.query.filter_by(email=data['email']).first()
+            token = create_access_token(
+                identity=str(user.id),
+                additional_claims={'role': user.role, 'username': user.username}
+            )
+            return jsonify({
+                'access_token': token,
+                'token_type': 'Bearer',
+                'role': user.role,
+                'user_id': user.id
+            }), 200
 
-    # If user exists and password matches, return a real user token
-    if user and check_password_hash(user.password, data['password']):
-        # Check if user is blacklisted (email starts with [BLACKLISTED])
-        if user.email.startswith('[BLACKLISTED]'):
-            return jsonify({'msg': 'This account has been disabled by admin'}), 401
-        
-        token = create_access_token(
-            identity=str(user.id),
-            additional_claims={'role': user.role, 'username': user.username}
-        )
-        return jsonify({
-            'access_token': token,
-            'token_type': 'Bearer',
-            'role': user.role,
-            'user_id': user.id
-        }), 200
+        # Dummy fallback
+        dummy_users = {
+            "admin@hospital.com": {"password": "admin123", "role": "Admin"},
+            "doctor@hospital.com": {"password": "doc123", "role": "Doctor"},
+            "patient@hospital.com": {"password": "pat123", "role": "Patient"}
+        }
+        email = data.get('email')
+        password = data.get('password')
+        user = dummy_users.get(email)
+        if user and user["password"] == password:
+            token = create_access_token(
+                identity=f'dummy:{email}',
+                additional_claims={'role': user['role'], 'username': email.split('@')[0]}
+            )
+            return jsonify({
+                'access_token': token,
+                'token_type': 'Bearer',
+                'role': user['role'],
+                'user_id': None
+            }), 200
 
-    # Fallback: check dummy credentials if real login fails
-    dummy_users = {
-        "admin@hospital.com": {"password": "admin123", "role": "Admin"},
-        "doctor@hospital.com": {"password": "doc123", "role": "Doctor"},
-        "patient@hospital.com": {"password": "pat123", "role": "Patient"}
-    }
+        return jsonify({'msg': 'Invalid credentials'}), 401
 
-    email = data.get('email')
-    password = data.get('password')
-
-    user = dummy_users.get(email)
-    if user and user["password"] == password:
-        # create a token for dummy user to be consistent with real users
-        token = create_access_token(
-            identity=f'dummy:{email}',
-            additional_claims={'role': user['role'], 'username': email.split('@')[0]}
-        )
-        return jsonify({
-            'access_token': token,
-            'token_type': 'Bearer',
-            'role': user['role'],
-            'user_id': None
-        }), 200
-
-    # If neither real nor dummy user matched, return invalid credentials
-    return jsonify({'msg': 'Invalid credentials'}), 401
+    except Exception as e:
+        import traceback
+        traceback.print_exc()  
+        return jsonify({'msg': 'Server error', 'error': str(e)}), 500
 
 
 @auth_bp.route('/dashboard', methods=['GET'])

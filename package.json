@@ -13,6 +13,7 @@
   "license": "ISC",
   "type": "commonjs",
   "dependencies": {
+    "bootstrap": "^5.3.8",
     "vue": "^3.5.24",
     "vue-router": "^4.6.3"
   },

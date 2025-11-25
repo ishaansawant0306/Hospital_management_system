@@ -29,16 +29,20 @@ class User(db.Model):
         email (str): Unique email address
         password (str): Hashed password for security
         role (str): User role ('Admin', 'Doctor', or 'Patient')
+        is_blacklisted (bool): Whether user is blacklisted by admin
     """
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(80), unique=True, nullable=False)
     email = db.Column(db.String(120), unique=True, nullable=False)
     password = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), nullable=False)  # 'Admin', 'Doctor', 'Patient'
+    is_blacklisted = db.Column(db.Boolean, default=False, nullable=False)
 
     # Relationships: One User can have one Doctor or Patient profile
     doctor = db.relationship('Doctor', backref='user', uselist=False)
     patient = db.relationship('Patient', backref='user', uselist=False)
+    
+
 
 
 class Doctor(db.Model):

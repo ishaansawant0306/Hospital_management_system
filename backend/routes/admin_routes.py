@@ -49,59 +49,63 @@ def list_doctors():
                 'email': doc.user.email if doc.user else 'N/A',
                 'specialization': doc.specialization,
                 'availability': doc.availability,
-                'contact_info': getattr(doc.user, 'contact_info', 'N/A') if doc.user else 'N/A'
+                'contact_info': getattr(doc.user, 'contact_info', 'N/A') if doc.user else 'N/A',
+                'is_blacklisted': doc.user.is_blacklisted if doc.user else False
             })
         return jsonify({'doctors': doctor_list}), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-@admin_bp.route('/doctors', methods=['POST'])
+@admin_bp.route('/doctors', methods=['POST'])      # Create a new doctor
 @jwt_required()
 def create_doctor():
-    """Create a new doctor profile."""
+    """Create a new doctor profile (Admin only)."""
     claims = get_jwt()
     if not check_admin_role(claims):
         return jsonify({'error': 'Unauthorized: Admin only'}), 403
 
     try:
         data = request.get_json()
-        
+
         # Validate required fields
         name = data.get('name')
         email = data.get('email')
-        password = data.get('password', 'doctor123')  # Default password
+        password = data.get('password', 'doctor123')  # Default password if not provided
         specialization = data.get('specialization')
         availability = data.get('availability', '{}')
 
         if not name or not specialization:
             return jsonify({'msg': 'Name and specialization are required'}), 400
 
-        # Check if email exists
+        # Check if email already exists
         if email and User.query.filter_by(email=email).first():
             return jsonify({'msg': 'Email already exists'}), 400
 
-        # Create User with Doctor role
+        # Auto-generate email if not provided
         email = email or f"{name.lower().replace(' ', '')}@hospital.com"
+
+        # Generate base username from name
         username = name.lower().replace(' ', '_')
-        
-        # Make username unique if needed
         base_username = username
+
+        # Ensure username uniqueness
         i = 1
         while User.query.filter_by(username=username).first():
             username = f"{base_username}{i}"
             i += 1
 
+        # Create User with Doctor role
         user = User(
             username=username,
             email=email,
-            password=generate_password_hash(password),
+            password=generate_password_hash(password),  # Hash password securely
             role='Doctor'
         )
         db.session.add(user)
-        db.session.flush()  # Get the user ID without committing
+        db.session.flush()  # Get the user ID before commit
 
-        # Create Doctor record
+        # Create Doctor record linked to User
         doctor = Doctor(
             user_id=user.id,
             specialization=specialization,
@@ -121,6 +125,7 @@ def create_doctor():
                 'availability': availability
             }
         }), 201
+
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': str(e)}), 500
@@ -228,7 +233,8 @@ def list_patients():
                 'email': pat.user.email if pat.user else 'N/A',
                 'age': pat.age,
                 'gender': pat.gender,
-                'contact_info': pat.contact_info
+                'contact_info': pat.contact_info,
+                'is_blacklisted': pat.user.is_blacklisted if pat.user else False
             })
         return jsonify({'patients': patient_list}), 200
     except Exception as e:
@@ -492,7 +498,8 @@ def search_doctors():
                 'name': doc.user.username if doc.user else 'N/A',
                 'email': doc.user.email if doc.user else 'N/A',
                 'specialization': doc.specialization,
-                'availability': doc.availability
+                'availability': doc.availability,
+                'is_blacklisted': doc.user.is_blacklisted if doc.user else False
             })
 
         return jsonify({'doctors': doctor_list}), 200
@@ -531,6 +538,7 @@ def search_patients():
                 'age': pat.age,
                 'gender': pat.gender,
                 'contact_info': pat.contact_info
+                
             })
 
         return jsonify({'patients': patient_list}), 200
@@ -559,10 +567,9 @@ def blacklist_doctor(doctor_id):
         if not user:
             return jsonify({'error': 'Associated user not found'}), 404
 
-        # Mark user as blacklisted by prefixing email
-        if not user.email.startswith('[BLACKLISTED]'):
-            user.email = f"[BLACKLISTED]{user.email}"
-            db.session.commit()
+        # Mark user as blacklisted
+        user.is_blacklisted = True
+        db.session.commit()
 
         return jsonify({'msg': f'Doctor {user.username} has been blacklisted'}), 200
     except Exception as e:
@@ -587,10 +594,9 @@ def blacklist_patient(patient_id):
         if not user:
             return jsonify({'error': 'Associated user not found'}), 404
 
-        # Mark user as blacklisted by prefixing email
-        if not user.email.startswith('[BLACKLISTED]'):
-            user.email = f"[BLACKLISTED]{user.email}"
-            db.session.commit()
+        # Mark user as blacklisted
+        user.is_blacklisted = True
+        db.session.commit()
 
         return jsonify({'msg': f'Patient {user.username} has been blacklisted'}), 200
     except Exception as e:
@@ -615,9 +621,8 @@ def unblacklist_doctor(doctor_id):
         if not user:
             return jsonify({'error': 'Associated user not found'}), 404
 
-        if user.email.startswith('[BLACKLISTED]'):
-            user.email = user.email.replace('[BLACKLISTED]', '', 1)
-            db.session.commit()
+        user.is_blacklisted = False
+        db.session.commit()
 
         return jsonify({'msg': f'Doctor {user.username} has been unblacklisted'}), 200
     except Exception as e:
@@ -642,9 +647,8 @@ def unblacklist_patient(patient_id):
         if not user:
             return jsonify({'error': 'Associated user not found'}), 404
 
-        if user.email.startswith('[BLACKLISTED]'):
-            user.email = user.email.replace('[BLACKLISTED]', '', 1)
-            db.session.commit()
+        user.is_blacklisted = False
+        db.session.commit()
 
         return jsonify({'msg': f'Patient {user.username} has been unblacklisted'}), 200
     except Exception as e:
@@ -671,12 +675,8 @@ def blacklist_user():
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
-        # For now, we can set a flag or delete the user. Let's add a blacklisted flag.
-        # We'll store this in a simple way: rename or mark the account as inactive.
-        # Since we don't have an "active" column yet, we'll prefix the email with [BLACKLISTED]
-        if not user.email.startswith('[BLACKLISTED]'):
-            user.email = f"[BLACKLISTED]{user.email}"
-            db.session.commit()
+        user.is_blacklisted = True
+        db.session.commit()
 
         return jsonify({'msg': f'User {user.username} has been blacklisted'}), 200
     except Exception as e:
@@ -697,9 +697,8 @@ def unblacklist_user(user_id):
         if not user:
             return jsonify({'error': 'User not found'}), 404
 
-        if user.email.startswith('[BLACKLISTED]'):
-            user.email = user.email.replace('[BLACKLISTED]', '', 1)
-            db.session.commit()
+        user.is_blacklisted = False
+        db.session.commit()
 
         return jsonify({'msg': f'User {user.username} has been unblacklisted'}), 200
     except Exception as e:
@@ -741,3 +740,11 @@ def dashboard_stats():
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/debug/button', methods=['POST'])
+def debug_button():
+    data = request.json
+    print("\n=== BUTTON CLICKED ===")
+    print("Button:", data.get("button"))
+    print("Entity ID:", data.get("id"))
+    print("=====================\n")
+    return {"msg": "Printed"}

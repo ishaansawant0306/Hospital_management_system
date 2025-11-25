@@ -81,16 +81,21 @@
                 <th>Email</th>
                 <th>Specialization</th>
                 <th>Availability</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="doctor in displayedDoctors" :key="doctor.id">
+              <tr v-for="doctor in displayedDoctors" :key="doctor.id" :class="{'blacklisted-row': doctor.is_blacklisted}">
                 <td>{{ doctor.id }}</td>
                 <td>{{ doctor.name }}</td>
                 <td>{{ doctor.email }}</td>
                 <td>{{ doctor.specialization }}</td>
                 <td>{{ doctor.availability }}</td>
+                <td>
+                  <span v-if="doctor.is_blacklisted" class="badge bg-danger">BLACKLISTED</span>
+                  <span v-else class="badge bg-success">Active</span>
+                </td>
                 <td class="actions">
                   <button
                     @click="openEditDoctorModal(doctor)"
@@ -133,17 +138,22 @@
                 <th>Age</th>
                 <th>Gender</th>
                 <th>Contact Info</th>
+                <th>Status</th>
                 <th>Actions</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="patient in displayedPatients" :key="patient.id">
+              <tr v-for="patient in displayedPatients" :key="patient.id" :class="{'blacklisted-row': patient.is_blacklisted}">
                 <td>{{ patient.id }}</td>
                 <td>{{ patient.name }}</td>
                 <td>{{ patient.email }}</td>
                 <td>{{ patient.age }}</td>
                 <td>{{ patient.gender }}</td>
                 <td>{{ patient.contact_info }}</td>
+                <td>
+                  <span v-if="patient.is_blacklisted" class="badge bg-danger">BLACKLISTED</span>
+                  <span v-else class="badge bg-success">Active</span>
+                </td>
                 <td class="actions">
                   <button
                     @click="openEditPatientModal(patient)"
@@ -850,6 +860,15 @@ h1 {
 
 .table tbody tr:hover {
   background-color: #f8f9fa;
+}
+
+.table tbody tr.blacklisted-row {
+  background-color: #ffe6e6;
+  opacity: 0.85;
+}
+
+.table tbody tr.blacklisted-row:hover {
+  background-color: #ffcccc;
 }
 
 .table tbody td {

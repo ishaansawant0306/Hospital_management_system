@@ -33,6 +33,21 @@ try:
         # Create all database tables based on defined models
         print("📦 Creating database tables...")
         db.create_all()
+        # Add is_blacklisted column if missing
+        print("🛡️ Checking for is_blacklisted column...")
+        import sqlite3
+        db_path = os.path.join("backend", "instance", "hospital.db")
+        conn = sqlite3.connect(db_path)
+        cur = conn.cursor()
+        cur.execute("PRAGMA table_info(user);")
+        cols = [row[1] for row in cur.fetchall()]
+        if "is_blacklisted" not in cols:
+            cur.execute("ALTER TABLE user ADD COLUMN is_blacklisted INTEGER DEFAULT 0;")
+            conn.commit()
+            print("✅ Column is_blacklisted added.")
+        else:
+            print("ℹ️ Column is_blacklisted already exists.")
+        conn.close()
 
         # Check if an admin user already exists in the database
         print("🔍 Checking for existing admin user...")
