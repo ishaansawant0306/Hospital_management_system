@@ -76,7 +76,11 @@ def fallback(path):
 
 
 if __name__ == '__main__':
-    # Run the unified server on port 5000 for production/single-port dev
+    # Run the unified server (default port 5000)
+    # Set PORT environment variable to change (e.g., PORT=8000)
     port = int(os.environ.get('PORT', 5000))
     debug_flag = os.environ.get('FLASK_DEBUG', '0') in ('1', 'true', 'True')
-    app.run(debug=debug_flag, port=port)
+    print(f"\n=== Hospital Management System ===")
+    print(f"Starting Flask server on http://127.0.0.1:{port}")
+    print(f"Debug mode: {debug_flag}\n")
+    app.run(debug=debug_flag, port=port, host='127.0.0.1')

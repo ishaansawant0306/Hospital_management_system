@@ -7,7 +7,7 @@
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <p>Are you sure you want to delete <strong>{{ entity.name }}</strong>?</p>
+          <p>Are you sure you want to delete <strong>{{ entity?.name }}</strong>?</p>
 
           <div v-if="error" class="alert alert-danger">{{ error }}</div>
 

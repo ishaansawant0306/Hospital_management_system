@@ -7,7 +7,7 @@
             <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
           </div>
           <div class="modal-body">
-            <p>Are you sure you want to disable <strong>{{ entity.name }}</strong>?</p>
+            <p>Are you sure you want to disable <strong>{{ entity?.name }}</strong>?</p>
             <p class="text-muted small">This user will not be able to log in to the system.</p>
             <div v-if="error" class="alert alert-danger mt-2">{{ error }}</div>
             <div v-if="loading" class="text-center mt-2">

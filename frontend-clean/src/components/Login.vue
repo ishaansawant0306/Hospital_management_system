@@ -73,6 +73,7 @@
 </template>
 
 <script>
+import api from '../api/axiosConfig';
 import { saveToken } from '../utils/tokenManager';
 
 export default {
@@ -95,18 +96,12 @@ export default {
 
       try {
         // Call the backend /login endpoint for authentication
-        const response = await fetch('/login', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email: this.email, password: this.password })
+        const response = await api.post('/login', { 
+          email: this.email, 
+          password: this.password 
         });
 
-        if (!response.ok) {
-          const errorData = await response.json();
-          throw new Error(errorData.msg || 'Login failed');
-        }
-
-        const data = await response.json();
+        const data = response.data;
         console.log('Login successful, received:', data);
 
         // Save token and user data to localStorage
