@@ -31,11 +31,16 @@
       <button v-if="searchQuery && !isSearching" class="btn btn-sm btn-outline-secondary ms-2" @click="clearSearch">Clear</button>
     </div>
 
+    <!-- No Results Message -->
+    <div v-if="searchQuery && doctors.length === 0 && patients.length === 0 && !isSearching" class="text-center my-5">
+      <h3>No results found for "{{ searchQuery }}"</h3>
+    </div>
+
     <!-- Registered Doctors -->
-    <div class="section-card">
+    <div class="section-card" v-if="!searchQuery || doctors.length > 0">
       <div class="section-header">
         <h2>Registered Doctors</h2>
-        <button class="create-btn" @click="openCreateModal">+ create</button>
+        <button class="btn-create" @click="openCreateDoctorModal">+ create</button>
       </div>
 
       <div v-if="doctors.length === 0" class="empty-state">
@@ -61,7 +66,7 @@
     </div>
 
     <!-- Registered Patients -->
-    <div class="section-card">
+    <div class="section-card" v-if="!searchQuery || patients.length > 0">
       <div class="section-header">
         <h2>Registered Patients</h2>
       </div>
@@ -227,6 +232,8 @@
       async fetchDashboardData() {
         this.loading = true;
         this.error = null;
+        // Do not clear searchQuery here if we want to support refresh with search, 
+        // but for now let's assume dashboard refresh resets search.
         this.isSearching = false;
         this.searchQuery = '';
 
@@ -242,13 +249,11 @@
 
           // Fetch doctors
           const doctorsRes = await api.get('/api/admin/doctors');
-          const doctorsData = doctorsRes.data;
-          this.doctors = doctorsData.doctors || [];
+          this.doctors = doctorsRes.data.doctors || [];
 
           // Fetch patients
           const patientsRes = await api.get('/api/admin/patients');
-          const patientsData = patientsRes.data;
-          this.patients = patientsData.patients || [];
+          this.patients = patientsRes.data.patients || [];
 
           // Fetch appointments
           const appointmentsRes = await api.get('/api/admin/appointments');
@@ -270,6 +275,34 @@
         }
       },
 
+      async handleSearch() {
+        if (!this.searchQuery.trim()) {
+          this.fetchDashboardData();
+          return;
+        }
+
+        this.isSearching = true;
+        try {
+          const [doctorsRes, patientsRes] = await Promise.all([
+            api.get(`/api/admin/search/doctors?q=${encodeURIComponent(this.searchQuery)}`),
+            api.get(`/api/admin/search/patients?q=${encodeURIComponent(this.searchQuery)}`)
+          ]);
+
+          this.doctors = doctorsRes.data.doctors || [];
+          this.patients = patientsRes.data.patients || [];
+        } catch (error) {
+          console.error('Search error:', error);
+          this.showToast('Error performing search');
+        } finally {
+          this.isSearching = false;
+        }
+      },
+
+      async clearSearch() {
+        this.searchQuery = '';
+        await this.fetchDashboardData();
+      },
+
       separateAppointments(appointments) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -287,17 +320,6 @@
             this.pastAppointments.push(appt);
           }
         });
-      },
-
-      performSearch() {
-        if (this.searchQuery.trim()) {
-          this.isSearching = true;
-        }
-      },
-
-      clearSearch() {
-        this.searchQuery = '';
-        this.isSearching = false;
       },
 
       formatDate(dateStr) {
