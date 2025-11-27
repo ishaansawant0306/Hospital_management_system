@@ -131,12 +131,11 @@
             <span class="doctor-name">{{ doc.name }}</span>
             <div class="doctor-actions">
               <button 
-                class="btn-check" 
-                @click="checkAvailability(doc)" 
+                @click="checkAvailability(doc)"
                 type="button"
-                style="background-color: #28a745 !important; border-color: #28a745 !important;"
+                class="btn-check-avail"
               >
-                ✓ check availability
+                check availability
               </button>
               <button 
                 class="btn-view" 
@@ -217,6 +216,47 @@
       </div>
     </div>
 
+    <!-- Doctor Details Modal -->
+    <div v-if="showDoctorDetailsModal" class="modal-overlay" @click="closeDoctorDetailsModal">
+      <div class="modal-content-doctor-details" @click.stop>
+        <div class="doctor-details-body">
+          <div class="doctor-info-left">
+            <h3 class="details-doctor-name">{{ selectedDoctorDetails.name }}</h3>
+            <p class="details-qualification">{{ selectedDoctorDetails.specialization }}</p>
+            <p class="details-experience">{{ selectedDoctorDetails.experience }}</p>
+            
+            <div class="details-description">
+              <p>{{ selectedDoctorDetails.description }}</p>
+            </div>
+          </div>
+          
+          <div class="doctor-info-right">
+            <div class="doctor-avatar-placeholder">
+              <svg xmlns="http://www.w3.org/2000/svg" width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                <circle cx="12" cy="7" r="4"></circle>
+              </svg>
+            </div>
+          </div>
+        </div>
+
+        <div class="doctor-details-actions">
+          <button 
+            @click="checkAvailabilityFromDetails" 
+            class="btn-check-avail-details"
+          >
+            check availability
+          </button>
+          <button 
+            @click="closeDoctorDetailsModal" 
+            class="btn-go-back"
+          >
+            Go Back
+          </button>
+        </div>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -235,15 +275,7 @@ export default {
         { id: 2, name: 'Oncology', key: 'oncology' },
         { id: 3, name: 'General', key: 'general' },
       ],
-      upcomingAppointments: [
-        { 
-          id: 1001, 
-          doctorName: 'Dr. abcde', 
-          department: 'general', 
-          date: '24/09/2025', 
-          time: '08 am - 12 pm' 
-        },
-      ],
+      upcomingAppointments: [],
       loading: false,
       error: null,
       showHistoryModal: false,
@@ -271,6 +303,15 @@ export default {
       },
       availabilityDays: [],
       selectedSlot: null,
+      // Doctor Details Modal state
+      showDoctorDetailsModal: false,
+      selectedDoctorDetails: {
+        id: null,
+        name: '',
+        specialization: '',
+        experience: '',
+        description: ''
+      },
     };
   },
   mounted() {
@@ -279,6 +320,7 @@ export default {
       this.$router.push('/login');
     }
     this.fetchPatientData();
+    this.fetchUpcomingAppointments();
   },
   computed: {
     /**
@@ -551,8 +593,7 @@ export default {
         
         alert('Appointment booked successfully!');
         this.closeAvailabilityModal();
-        // Optionally refresh upcoming appointments
-        // this.fetchUpcomingAppointments();
+        this.fetchUpcomingAppointments();
       } catch (error) {
         console.error("Error booking appointment:", error);
         alert(error.response?.data?.error || "Unable to book appointment");
@@ -560,15 +601,78 @@ export default {
     },
     viewDoctorDetails(doc) {
       console.log('View details clicked for', doc);
-      // Placeholder: will be implemented later with doctor details view
-      alert('Doctor details view will be implemented soon.');
+      // Extract name without "Dr." prefix for display if needed, but usually we want "Dr."
+      // The doc object has: id, name (with Dr.), specialization
+      
+      this.selectedDoctorDetails = {
+        id: doc.id,
+        name: doc.name,
+        specialization: doc.specialization,
+        // Placeholders since these fields don't exist in backend yet
+        experience: '10+ Years Experience Overall', 
+        description: `Dr. ${doc.name.replace('Dr. ', '')} is a specialist in ${doc.specialization}. Dedicated to providing the best medical care with a focus on patient well-being and advanced treatment methodologies.`
+      };
+      
+      this.showDoctorDetailsModal = true;
+    },
+    closeDoctorDetailsModal() {
+      this.showDoctorDetailsModal = false;
+    },
+    checkAvailabilityFromDetails() {
+      // Close details modal and open availability modal for the same doctor
+      const doc = {
+        id: this.selectedDoctorDetails.id,
+        name: this.selectedDoctorDetails.name
+      };
+      this.closeDoctorDetailsModal();
+      this.checkAvailability(doc);
     },
     cancelAppointment(apptId) {
       console.log('Cancelling appointment:', apptId);
       if (confirm('Are you sure you want to cancel this appointment?')) {
+        // In a real app, you would call an API here
+        // await api.post(`/patient/appointments/${apptId}/cancel`);
         alert('Appointment cancelled successfully!');
         // Remove from list
         this.upcomingAppointments = this.upcomingAppointments.filter(a => a.id !== apptId);
+      }
+    },
+    async fetchUpcomingAppointments() {
+      try {
+        console.log('Fetching upcoming appointments...');
+        const response = await api.get('/patient/history');
+        const history = response.data?.medical_history || [];
+        
+        // Filter for 'Booked' status (assuming these are upcoming)
+        // You might also want to filter by date if 'Booked' includes past ones, 
+        // but usually 'Booked' implies future/active.
+        const booked = history.filter(item => item.status === 'Booked');
+        
+        this.upcomingAppointments = booked.map(item => {
+          // Format date: YYYY-MM-DD -> DD/MM/YYYY
+          const dateObj = new Date(item.date);
+          const dateStr = dateObj.toLocaleDateString('en-GB'); // DD/MM/YYYY
+          
+          // Format time: 10:00 -> Morning slot, 18:00 -> Evening slot
+          let timeStr = item.time;
+          const hour = parseInt(item.time.split(':')[0], 10);
+          if (hour < 12) {
+            timeStr = '08:00 - 12:00 am';
+          } else {
+            timeStr = '04:00 - 09:00 pm';
+          }
+          
+          return {
+            id: item.appointment_id,
+            doctorName: item.doctor ? `Dr. ${item.doctor}` : 'Unknown Doctor',
+            department: item.doctor_specialization || 'General',
+            date: dateStr,
+            time: timeStr
+          };
+        });
+        console.log('Upcoming appointments loaded:', this.upcomingAppointments);
+      } catch (error) {
+        console.error("Error fetching upcoming appointments:", error);
       }
     },
     logout() {
@@ -952,27 +1056,28 @@ export default {
   flex-shrink: 0;
 }
 
-.btn-check {
-  background-color: #007bff !important;
-  color: white !important;
-  border: 2px solid #0056b3 !important;
-  padding: 10px 20px !important;
-  border-radius: 6px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 0.2s;
+.btn-check-avail {
+  background-color: white !important;
+  color: #007bff !important;
+  border: 1px solid #007bff !important;
+  padding: 8px 18px !important;
+  border-radius: 6px !important;
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+  transition: all 0.2s;
   display: inline-block !important;
+  white-space: nowrap !important;
+  min-width: 140px !important;
+  text-align: center !important;
+  margin-right: 10px !important;
   visibility: visible !important;
   opacity: 1 !important;
-  white-space: nowrap;
-  min-width: 160px;
-  text-align: center;
-  margin-right: 10px;
 }
 
-.btn-check:hover {
-  background-color: #0056b3;
+.btn-check-avail:hover {
+  background-color: #007bff !important;
+  color: white !important;
 }
 
 .btn-view {
@@ -1107,15 +1212,15 @@ export default {
 
 /* Evening slot styles */
 .time-slot.evening.available {
-  background: #f8d7da;
-  color: #721c24;
-  border-color: #dc3545;
+  background: #d4edda;
+  color: #155724;
+  border-color: #28a745;
 }
 
 .time-slot.evening.available:hover {
-  background: #f5c6cb;
+  background: #c3e6cb;
   transform: translateY(-2px);
-  box-shadow: 0 2px 8px rgba(220, 53, 69, 0.3);
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
 }
 
 .time-slot.evening.unavailable {
@@ -1159,5 +1264,108 @@ export default {
   background-color: #ccc;
   cursor: not-allowed;
   opacity: 0.6;
+}
+
+/* Doctor Details Modal */
+.modal-content-doctor-details {
+  background: white;
+  padding: 40px;
+  border-radius: 4px; /* Square-ish as per wireframe */
+  width: 90%;
+  max-width: 600px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  border: 1px solid #ccc;
+}
+
+.doctor-details-body {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 40px;
+}
+
+.doctor-info-left {
+  flex: 1;
+  padding-right: 20px;
+}
+
+.details-doctor-name {
+  font-size: 24px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.details-qualification {
+  font-size: 16px;
+  color: #555;
+  margin-bottom: 5px;
+}
+
+.details-experience {
+  font-size: 15px;
+  color: #666;
+  margin-bottom: 25px;
+}
+
+.details-description p {
+  font-size: 15px;
+  line-height: 1.5;
+  color: #444;
+}
+
+.doctor-info-right {
+  width: 120px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.doctor-avatar-placeholder {
+  width: 100px;
+  height: 100px;
+  background-color: #f0f0f0;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.doctor-details-actions {
+  display: flex;
+  justify-content: flex-end; /* Align to right as per wireframe */
+  gap: 15px;
+}
+
+.btn-check-avail-details {
+  background-color: white;
+  color: #007bff;
+  border: 1px solid #007bff;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-check-avail-details:hover {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-go-back {
+  background-color: #e2e6ea;
+  color: #333;
+  border: 1px solid #ccc;
+  padding: 8px 20px;
+  border-radius: 6px;
+  font-size: 15px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-go-back:hover {
+  background-color: #dbe0e5;
 }
 </style>
