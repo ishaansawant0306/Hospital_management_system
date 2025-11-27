@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div>
     <nav class="navbar navbar-expand-lg bg-white shadow-sm px-4 py-3">
       <div class="container-fluid navbar-inner">
@@ -11,14 +11,14 @@
         </ul>
       </div>
     </nav>
-    <!-- Login Page -->
-    <div class="login-page">
-      <div class="login-card shadow-lg">
+    <!-- Register Page -->
+    <div class="register-page">
+      <div class="register-card shadow-lg">
         <div class="card-row">
           <!-- Left Panel -->
           <div class="left-panel">
             <div class="left-inner">
-              <h2>Patient Login</h2>
+              <h2>Patient Registration</h2>
               <ul class="features-list">
                 <li>Anytime, Anywhere, Any Device</li>
                 <li>Go Paperless</li>
@@ -32,30 +32,48 @@
           <!-- Right Panel -->
           <div class="right-panel">
             <div class="right-inner">
-              <h3 class="title">Sign In</h3>
-              <form @submit.prevent="handleLogin">
+              <h3 class="title">Sign Up</h3>
+              <form @submit.prevent="handleRegister">
+                <div class="form-group">
+                  <label class="form-label">First Name</label>
+                  <input type="text" v-model="firstName" class="form-control" placeholder="First Name" required />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Last Name</label>
+                  <input type="text" v-model="lastName" class="form-control" placeholder="Last Name" required />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Age</label>
+                  <input type="number" v-model="age" class="form-control" placeholder="Age" min="1" max="120" />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Where are you from?</label>
+                  <input type="text" v-model="location" class="form-control" placeholder="City, Country" />
+                </div>
+
                 <div class="form-group">
                   <label class="form-label">Email or User Id</label>
-                  <input type="text" v-model="email" class="form-control" placeholder="Email or User Id" required />
+                  <input type="email" v-model="email" class="form-control" placeholder="Email or User Id" required />
+                  <small class="form-text">Email will be used as username</small>
                 </div>
 
                 <div class="form-group">
                   <label class="form-label">Password</label>
-                  <div class="password-row">
-                    <input :type="showPassword ? 'text' : 'password'" v-model="password" class="form-control" placeholder="Password" required />
-                    <button type="button" class="show-btn" @click="showPassword = !showPassword">{{ showPassword ? 'Hide' : 'Show' }}</button>
-                  </div>
+                  <input :type="showPassword ? 'text' : 'password'" v-model="password" class="form-control" placeholder="Password" required />
                 </div>
 
-                <button type="submit" class="btn login-btn w-100" :disabled="loading">{{ loading ? 'Logging in...' : 'Login' }}</button>
+                <button type="submit" class="btn register-btn w-100" :disabled="loading">{{ loading ? 'Registering...' : 'Register' }}</button>
 
-                <div class="register-link-container">
-                  <span class="register-text">Don't have an account? </span>
-                  <router-link to="/register" class="register-link">register</router-link>
+                <div class="login-link-container">
+                  <span class="login-text">Already have an account? </span>
+                  <router-link to="/login" class="login-link-register">Login</router-link>
                 </div>
 
                 <div v-if="error" class="alert alert-danger mt-3">{{ error }}</div>
-                <div v-if="success" class="alert alert-success mt-3">Login successful! Redirecting...</div>
+                <div v-if="success" class="alert alert-success mt-3">Registration successful! Redirecting to login...</div>
               </form>
             </div>
           </div>
@@ -67,12 +85,15 @@
 
 <script>
 import api from '../api/axiosConfig';
-import { saveToken } from '../utils/tokenManager';
 
 export default {
-  name: 'LoginPage',
+  name: 'RegisterPage',
   data() {
     return {
+      firstName: '',
+      lastName: '',
+      age: '',
+      location: '',
       email: '',
       password: '',
       showPassword: false,
@@ -82,38 +103,45 @@ export default {
     };
   },
   methods: {
-    async handleLogin() {
+    async handleRegister() {
       this.loading = true;
       this.error = null;
       this.success = false;
 
+      // Validation
+      if (!this.firstName || !this.lastName || !this.email || !this.password) {
+        this.error = 'Please fill in all required fields';
+        this.loading = false;
+        return;
+      }
+
       try {
-        // Call the backend /login endpoint for authentication
-        const response = await api.post('/login', { 
-          email: this.email, 
-          password: this.password 
-        });
+        // Prepare registration data
+        // Combine first name and last name for username, but backend will use email if username conflicts
+        const username = `${this.firstName.toLowerCase()}_${this.lastName.toLowerCase()}`;
+        
+        const registrationData = {
+          email: this.email,
+          password: this.password,
+          username: username,
+          age: this.age ? parseInt(this.age) : null,
+          contact_info: this.location || null
+        };
 
-        const data = response.data;
-        console.log('Login successful, received:', data);
+        // Call the backend /register endpoint
+        const response = await api.post('/register', registrationData);
 
-        // Save token and user data to localStorage
-        saveToken(data);
+        console.log('Registration successful:', response.data);
         this.success = true;
 
+        // Redirect to login page after 2 seconds
         setTimeout(() => {
-          console.log('Redirecting to role:', data.role);
-          if (data.role === 'Admin') {
-            this.$router.push('/admin');
-          } else if (data.role === 'Doctor') {
-            this.$router.push('/doctor');
-          } else if (data.role === 'Patient') {
-            this.$router.push('/patient');
-          }
-        }, 1000);
+          this.$router.push('/login');
+        }, 2000);
+
       } catch (err) {
-        this.error = err.response?.data?.msg || err.response?.data?.error || err.message || 'An error occurred during login';
-        console.error('Login error:', err);
+        this.error = err.response?.data?.msg || err.response?.data?.error || err.message || 'An error occurred during registration';
+        console.error('Registration error:', err);
       } finally {
         this.loading = false;
       }
@@ -136,6 +164,7 @@ export default {
   font-weight: 700;
   font-family: Georgia, 'Times New Roman', Times, serif;
   letter-spacing: 0.6px;
+  text-decoration: none;
 }
 
 .navbar-inner {
@@ -158,22 +187,11 @@ export default {
   font-weight: 500;
   color: #333 !important;
   padding: 6px 4px;
+  text-decoration: none;
 }
 
 .nav-link:hover {
   color: #0aa64a !important;
-}
-
-.btn-book {
-  background: #0aa64a;
-  color: #fff;
-  border-radius: 26px;
-  padding: 8px 16px;
-  font-weight: 700;
-  text-decoration: none;
-  box-shadow: 0 4px 10px rgba(10,166,74,0.12);
-  display: inline-block;
-  border: none;
 }
 
 .login-link {
@@ -182,12 +200,8 @@ export default {
 }
 .login-link-item { margin-left: 6px; }
 
-.navbar-nav {
-  margin-left: auto;
-}
-
 /* Page layout */
-.login-page {
+.register-page {
   min-height: 100vh;
   display: flex;
   align-items: center;
@@ -196,7 +210,7 @@ export default {
   padding: 3rem 1rem;
 }
 
-.login-card {
+.register-card {
   width: 100%;
   max-width: 1000px;
   border-radius: 14px;
@@ -204,7 +218,7 @@ export default {
   box-shadow: 0 18px 50px rgba(0,0,0,0.25);
 }
 
-.card-row { display: flex; flex-direction: row; min-height: 420px; }
+.card-row { display: flex; flex-direction: row; min-height: 600px; }
 
 .left-panel { flex: 0 0 45%; background-color: #0aa64a; color: #fff; display:flex; align-items:center; justify-content:center; }
 .left-inner { padding: 40px; }
@@ -218,13 +232,22 @@ export default {
 .right-inner { width:100%; max-width:420px; padding:36px; }
 .title { text-align:center; font-size:34px; margin-bottom:20px; color:#222; }
 
-.form-label { font-weight:600; color:#666; }
+.form-label { font-weight:600; color:#666; display: block; margin-bottom: 4px; }
 .form-control { width:100%; padding:12px 14px; border-radius:8px; border:1px solid #e8e8e8; margin-top:8px; background:#f5f6f7; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03); }
+.form-control:focus { outline: none; border-color: #0aa64a; }
 
-.password-row { position:relative; }
-.password-row .show-btn { position:absolute; right:8px; top:50%; transform:translateY(-50%); background:transparent; border:none; color:#007bff; font-weight:600; font-size:14px; cursor:pointer; }
+.form-text {
+  display: block;
+  margin-top: 4px;
+  font-size: 12px;
+  color: #888;
+}
 
-.login-btn {
+.form-group {
+  margin-bottom: 16px;
+}
+
+.register-btn {
   background: linear-gradient(180deg,#ff8a00,#f58220);
   border: none;
   color: #fff;
@@ -237,27 +260,38 @@ export default {
   display: block;
   margin: 28px auto 0;
   text-align: center;
+  cursor: pointer;
 }
+
+.register-btn:hover:not(:disabled) {
+  background: linear-gradient(180deg,#f58220,#e6751a);
+}
+
+.register-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
 .alert { margin-top:14px; }
 
-.register-link-container {
+.login-link-container {
   text-align: center;
   margin-top: 20px;
   font-size: 14px;
 }
 
-.register-text {
+.login-text {
   color: #666;
 }
 
-.register-link {
+.login-link-register {
   color: #0aa64a;
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
 }
 
-.register-link:hover {
+.login-link-register:hover {
   text-decoration: underline;
 }
 

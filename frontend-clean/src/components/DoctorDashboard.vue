@@ -22,6 +22,7 @@
             <th>Sr No.</th>
             <th>Patient Name</th>
             <th>Patient History</th>
+            <th>Appointment Details</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -31,6 +32,9 @@
             <td>{{ appt.patientName }}</td>
             <td>
               <button @click="openTreatmentModal(appt.id)" class="btn-update">update</button>
+            </td>
+            <td>
+              <button @click="openAppointmentDetailsModal(appt)" class="btn-view">view</button>
             </td>
             <td>
               <button @click="markCompleted(appt.id)" class="btn-complete">mark as complete</button>
@@ -176,6 +180,30 @@
       </div>
     </div>
 
+    <!-- Appointment Details Modal -->
+    <div v-if="showAppointmentDetailsModal" class="modal-overlay" @click="closeAppointmentDetailsModal">
+      <div class="modal-content" @click.stop>
+        <div class="modal-header">
+          <h3 class="modal-title">Appointment Details</h3>
+          <button @click="closeAppointmentDetailsModal" class="btn-close-modal">×</button>
+        </div>
+        <div class="appointment-details-content">
+          <div class="detail-row">
+            <span class="detail-label">Date:</span>
+            <span class="detail-value">{{ formatAppointmentDate(selectedAppointment?.date) }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Time:</span>
+            <span class="detail-value">{{ selectedAppointment?.time || 'N/A' }}</span>
+          </div>
+          <div class="detail-row">
+            <span class="detail-label">Shift:</span>
+            <span class="detail-value">{{ getAppointmentShift(selectedAppointment?.time) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
     <!-- Doctor's Availability Modal -->
     <div v-if="showAvailabilityModal" class="modal-overlay" @click="closeAvailabilityModal">
       <div class="modal-content-availability" @click.stop>
@@ -217,150 +245,176 @@
 import { clearToken, getUserRole, getToken } from "../utils/tokenManager";
 import api from '../api/axiosConfig';
 
+const createEmptyTreatment = () => ({
+  visitType: "",
+  testDone: "",
+  diagnosis: "",
+  medicines: [{ name: "", dosage: "" }],
+  prescription: "",
+  notes: ""
+});
+
 export default {
   name: "DoctorDashboard",
   data() {
     return {
-      doctorName: "Abcde",
-      stats: {
-        todayAppointments: 3,
-        pendingTreatments: 5,
-        completedCases: 12,
-      },
-      appointments: [
-        { id: 1, sr_no: 1, patientName: "Mr. abcde", patientId: 1, date: "2024-01-15", time: "10:00 AM" },
-      ],
-      patients: [
-        { id: 1, name: "Mr. abcde", lastVisit: "2024-01-10" },
-        { id: 2, name: "Miss. Pqrst", lastVisit: "2024-01-12" },
-      ],
+      doctorName: "Doctor",
+      appointments: [],
+      patients: [],
       history: [],
       showTreatmentModal: false,
       showHistoryModal: false,
+      showAppointmentDetailsModal: false,
       selectedAppointmentId: null,
       selectedPatientId: null,
+      selectedAppointment: null,
       currentPatient: {
-        name: "Mr. abcde",
-        department: "Cardiology"
+        name: "",
+        department: "General Medicine"
       },
       historyPatient: {
-        name: "Mr. abcde",
-        doctorName: "Dr. pqrst",
-        department: "Cardiology"
+        name: "",
+        doctorName: "",
+        department: "General Medicine"
       },
-      patientHistory: [
-        {
-          visitType: "In-person",
-          testDone: "ECG",
-          diagnosis: "Abnormal Heartbeats",
-          prescription: "exercise daily",
-          medicines: [{ name: "Medicine 1", dosage: "1-0-1" }]
-        },
-        {
-          visitType: "In-person",
-          testDone: "ECG",
-          diagnosis: "Abnormal Heartbeats",
-          prescription: "exercise daily",
-          medicines: [{ name: "Medicine 2", dosage: "0-1-1" }]
-        },
-        {
-          visitType: "In-person",
-          testDone: "ECG",
-          diagnosis: "normal Heartbeats",
-          prescription: "cont. exercise",
-          medicines: [{ name: "Medicine 3", dosage: "1-0-0" }]
-        }
-      ],
-      treatment: {
-        visitType: "",
-        testDone: "",
-        diagnosis: "",
-        medicines: [
-          { name: "", dosage: "" }
-        ],
-        prescription: "",
-        notes: ""
-      },
-      treatmentData: {}, // Store treatment data per appointment ID
+      patientHistory: [],
+      treatment: createEmptyTreatment(),
+      treatmentData: {},
       showAvailabilityModal: false,
-      availabilityDays: []
+      availabilityDays: [],
+      dashboardLoading: false,
+      treatmentSaving: false,
+      historyLoading: false
     };
   },
   mounted() {
     const role = getUserRole();
     const token = getToken();
     
-    console.log("=== Doctor Dashboard Mounted ===");
-    console.log("User Role:", role);
-    console.log("Token exists:", !!token);
-    
-    if (role !== "Doctor") {
-      console.error("Invalid role:", role);
-      this.$router.push("/login");
-      return;
-    }
-    
-    if (!token) {
-      console.error("No token in localStorage");
+    if (role !== "Doctor" || !token) {
       this.$router.push("/login");
       return;
     }
 
-    // Generate 7 days starting from today
     this.generateAvailabilityDays();
+    this.fetchDashboardData();
+    this.loadAvailability();
   },
   methods: {
+    async fetchDashboardData() {
+      this.dashboardLoading = true;
+      try {
+        const response = await api.get('/doctor/dashboard');
+        const data = response.data || {};
+        this.doctorName = data.doctor?.name || this.doctorName;
+
+        this.appointments = (data.appointments_next_7_days || []).map(appt => ({
+          id: appt.id,
+          date: appt.date,
+          time: appt.time,
+          status: appt.status,
+          patientName: appt.patient?.name || "Unknown patient",
+          patientId: appt.patient?.id,
+          patient: appt.patient || {}
+        }));
+
+        this.patients = data.assigned_patients || [];
+      } catch (error) {
+        console.error("Error fetching doctor dashboard:", error);
+        alert(error.response?.data?.error || "Unable to load dashboard data");
+      } finally {
+        this.dashboardLoading = false;
+      }
+    },
+
+    normalizeTreatmentPayload(payload) {
+      const normalized = createEmptyTreatment();
+
+      if (!payload) {
+        return normalized;
+      }
+
+      normalized.visitType = payload.visitType || "";
+      normalized.testDone = payload.testDone || "";
+      normalized.diagnosis = payload.diagnosis || "";
+      normalized.prescription = payload.prescription || "";
+      normalized.notes = payload.notes || "";
+      normalized.medicines = Array.isArray(payload.medicines) && payload.medicines.length
+        ? payload.medicines.map(med => ({
+            name: med.name || "",
+            dosage: med.dosage || ""
+          }))
+        : [{ name: "", dosage: "" }];
+
+      return normalized;
+    },
+
+    prepareTreatmentPayload(treatment) {
+      const payload = this.normalizeTreatmentPayload(treatment);
+      payload.medicines = payload.medicines.filter(med => med.name || med.dosage);
+      if (payload.medicines.length === 0) {
+        payload.medicines = [{ name: "", dosage: "" }];
+      }
+      return payload;
+    },
+
+    async fetchTreatmentDetails(appointmentId) {
+      try {
+        const response = await api.get(`/doctor/treatment/${appointmentId}`);
+        if (response.data?.treatment) {
+          return this.normalizeTreatmentPayload(response.data.treatment);
+        }
+      } catch (error) {
+        console.error("Error fetching treatment details:", error);
+      }
+      return null;
+    },
+
     async openTreatmentModal(appointmentId) {
       this.selectedAppointmentId = appointmentId;
       
-      // Find the appointment to get patient info
       const appt = this.appointments.find(a => a.id === appointmentId);
       if (appt) {
         this.currentPatient.name = appt.patientName;
-        // In real implementation, fetch patient department from API
+        this.currentPatient.department = appt.patient?.department || "General Medicine";
       }
-      
-      // Load existing treatment data if it exists for this appointment
-      if (this.treatmentData[appointmentId]) {
-        this.treatment = JSON.parse(JSON.stringify(this.treatmentData[appointmentId]));
-        console.log("Loaded existing treatment data:", this.treatment);
-      } else {
-        // Reset to empty if no data exists
-        this.treatment = {
-          visitType: "",
-          testDone: "",
-          diagnosis: "",
-          medicines: [{ name: "", dosage: "" }],
-          prescription: "",
-          notes: ""
-        };
+
+      let existing = this.treatmentData[appointmentId];
+      if (!existing) {
+        existing = await this.fetchTreatmentDetails(appointmentId);
+        if (existing) {
+          this.treatmentData[appointmentId] = existing;
+        }
       }
-      
+
+      this.treatment = this.normalizeTreatmentPayload(existing);
       this.showTreatmentModal = true;
     },
     
     closeTreatmentModal() {
-      // Don't reset treatment data - keep it for later
       this.showTreatmentModal = false;
     },
     
-    
     async submitTreatment() {
-      console.log("Treatment submitted:", this.treatment);
-      
-      // Save treatment data for this appointment
-      this.treatmentData[this.selectedAppointmentId] = JSON.parse(JSON.stringify(this.treatment));
-      console.log("Treatment data saved for appointment:", this.selectedAppointmentId);
-      
-      // TODO: Save to backend
+      if (!this.selectedAppointmentId) {
+        alert("Invalid appointment selected");
+        return;
+      }
+
+      this.treatmentSaving = true;
+      const payload = this.prepareTreatmentPayload(this.treatment);
+
       try {
-        // const response = await api.post(`/api/doctor/treatment/${this.selectedAppointmentId}`, this.treatment);
-        console.log("Treatment data ready to save:", this.treatment);
+        await api.post(`/doctor/treatment/${this.selectedAppointmentId}`, payload);
+        this.treatmentData[this.selectedAppointmentId] = payload;
+        alert("Patient history saved successfully");
+        this.closeTreatmentModal();
       } catch (error) {
         console.error("Error saving treatment:", error);
+        alert(error.response?.data?.error || "Error saving patient history");
+      } finally {
+        this.treatmentSaving = false;
       }
-      
-      this.closeTreatmentModal();
     },
     
     addMedicine() {
@@ -375,23 +429,36 @@ export default {
     
     async viewHistory(patientId) {
       this.selectedPatientId = patientId;
+      this.historyLoading = true;
       
-      // Find patient info
-      const patient = this.patients.find(p => p.id === patientId);
-      if (patient) {
-        this.historyPatient.name = patient.name;
-      }
-      
-      // TODO: Fetch patient history from backend
       try {
-        // const response = await api.get(`/api/doctor/patient/${patientId}/history`);
-        // this.patientHistory = response.data.history;
-        console.log("Fetching history for patient:", patientId);
+        const response = await api.get(`/doctor/patient/history/${patientId}`);
+        const patient = response.data?.patient || {};
+
+        this.historyPatient = {
+          name: patient.name || "Unknown patient",
+          doctorName: this.doctorName,
+          department: patient.department || "General Medicine"
+        };
+
+        this.patientHistory = (response.data?.medical_history || []).map(entry => {
+          const treatment = entry.treatment || {};
+          return {
+            visitType: treatment.visitType || "N/A",
+            testDone: treatment.testDone || "N/A",
+            diagnosis: treatment.diagnosis || "N/A",
+            prescription: treatment.prescription || "N/A",
+            medicines: treatment.medicines || []
+          };
+        });
+        
+        this.showHistoryModal = true;
       } catch (error) {
         console.error("Error fetching history:", error);
+        alert(error.response?.data?.error || "Unable to load patient history");
+      } finally {
+        this.historyLoading = false;
       }
-      
-      this.showHistoryModal = true;
     },
     
     closeHistoryModal() {
@@ -400,53 +467,35 @@ export default {
     
     formatMedicines(medicines) {
       if (!medicines || medicines.length === 0) return "None";
-      return medicines.map(m => `${m.name} ${m.dosage}`).join(", ");
+      return medicines.map(m => `${m.name} ${m.dosage}`.trim()).join(", ");
     },
     
     async markCompleted(appointmentId) {
-      // Find the appointment
-      const appt = this.appointments.find(a => a.id === appointmentId);
-      if (!appt) {
-        alert("Appointment not found");
-        return;
+      let savedTreatment = this.treatmentData[appointmentId];
+
+      if (!savedTreatment) {
+        savedTreatment = await this.fetchTreatmentDetails(appointmentId);
+        if (savedTreatment) {
+          this.treatmentData[appointmentId] = savedTreatment;
+        }
       }
 
-      // Check if treatment data exists for this appointment
-      const savedTreatment = this.treatmentData[appointmentId];
-      if (!savedTreatment || (!savedTreatment.diagnosis && !savedTreatment.visitType)) {
+      if (!savedTreatment || (!savedTreatment.diagnosis && !savedTreatment.visitType && !savedTreatment.testDone)) {
         alert("Please update patient history before marking as complete");
         return;
       }
 
-      // Add current treatment to patient history
-      const newHistoryEntry = {
-        visitType: savedTreatment.visitType || "In-person",
-        testDone: savedTreatment.testDone || "N/A",
-        diagnosis: savedTreatment.diagnosis || "N/A",
-        prescription: savedTreatment.prescription || "N/A",
-        medicines: savedTreatment.medicines.filter(m => m.name || m.dosage)
-      };
-
-      // Add to patient history
-      this.patientHistory.unshift(newHistoryEntry);
-
-      // TODO: Send to backend to mark appointment as completed
       try {
-        // await api.post(`/api/doctor/appointment/${appointmentId}/complete`, newHistoryEntry);
-        console.log("Appointment marked as complete:", appointmentId);
+        await api.post('/doctor/appointment/update-status', {
+          appointment_id: appointmentId,
+          status: 'Completed'
+        });
         alert("Appointment marked as complete!");
-        
-        // Remove from appointments list
-        const index = this.appointments.findIndex(a => a.id === appointmentId);
-        if (index !== -1) {
-          this.appointments.splice(index, 1);
-        }
-
-        // Clear saved treatment data for this appointment
+        this.appointments = this.appointments.filter(a => a.id !== appointmentId);
         delete this.treatmentData[appointmentId];
       } catch (error) {
         console.error("Error marking appointment as complete:", error);
-        alert("Error completing appointment");
+        alert(error.response?.data?.error || "Error completing appointment");
       }
     },
     
@@ -455,20 +504,16 @@ export default {
         return;
       }
 
-      // TODO: Send cancellation to backend
       try {
-        // await api.post(`/api/doctor/appointment/${appointmentId}/cancel`);
-        console.log("Appointment cancelled:", appointmentId);
+        await api.post('/doctor/appointment/update-status', {
+          appointment_id: appointmentId,
+          status: 'Cancelled'
+        });
         alert("Appointment cancelled. Patient will be notified.");
-        
-        // Remove from appointments list
-        const index = this.appointments.findIndex(a => a.id === appointmentId);
-        if (index !== -1) {
-          this.appointments.splice(index, 1);
-        }
+        this.appointments = this.appointments.filter(a => a.id !== appointmentId);
       } catch (error) {
         console.error("Error cancelling appointment:", error);
-        alert("Error cancelling appointment");
+        alert(error.response?.data?.error || "Error cancelling appointment");
       }
     },
     
@@ -493,6 +538,17 @@ export default {
       
       this.availabilityDays = days;
     },
+
+    async loadAvailability() {
+      try {
+        const response = await api.get('/doctor/availability');
+        if (Array.isArray(response.data?.availability) && response.data.availability.length) {
+          this.availabilityDays = response.data.availability;
+        }
+      } catch (error) {
+        console.error("Error loading availability:", error);
+      }
+    },
     
     openAvailabilityModal() {
       this.showAvailabilityModal = true;
@@ -514,21 +570,62 @@ export default {
         return;
       }
 
-      // Save to backend
       try {
         await api.post('/doctor/availability', { availability: this.availabilityDays });
-        console.log("Availability saved:", this.availabilityDays);
         alert("Availability saved successfully!");
         this.closeAvailabilityModal();
       } catch (error) {
         console.error("Error saving availability:", error);
-        alert("Error saving availability");
+        alert(error.response?.data?.error || "Error saving availability");
       }
     },
     
     logout() {
       clearToken();
       this.$router.push("/login");
+    },
+    
+    openAppointmentDetailsModal(appointment) {
+      this.selectedAppointment = appointment;
+      this.showAppointmentDetailsModal = true;
+    },
+    
+    closeAppointmentDetailsModal() {
+      this.showAppointmentDetailsModal = false;
+      this.selectedAppointment = null;
+    },
+    
+    formatAppointmentDate(dateString) {
+      if (!dateString) return 'N/A';
+      try {
+        const date = new Date(dateString);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}/${month}/${year}`;
+      } catch (error) {
+        return dateString;
+      }
+    },
+    
+    getAppointmentShift(timeString) {
+      if (!timeString) return 'N/A';
+      try {
+        const [hours, minutes] = timeString.split(':').map(Number);
+        const totalMinutes = hours * 60 + minutes;
+        
+        // Morning shift: 08:00 - 12:00 (480 - 720 minutes)
+        // Evening shift: 16:00 - 21:00 (960 - 1260 minutes)
+        if (totalMinutes >= 480 && totalMinutes <= 720) {
+          return 'Morning';
+        } else if (totalMinutes >= 960 && totalMinutes <= 1260) {
+          return 'Evening';
+        } else {
+          return 'Other';
+        }
+      } catch (error) {
+        return 'N/A';
+      }
     },
   },
 };
@@ -1181,6 +1278,64 @@ textarea.form-control {
   font-style: italic;
   margin-bottom: 15px;
   text-align: center;
+}
+
+/* Appointment Details Modal */
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  padding-bottom: 15px;
+  border-bottom: 1px solid #e0e0e0;
+}
+
+.btn-close-modal {
+  background: none;
+  border: none;
+  font-size: 32px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  transition: color 0.2s;
+}
+
+.btn-close-modal:hover {
+  color: #333;
+}
+
+.appointment-details-content {
+  padding: 10px 0;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.detail-row:last-child {
+  border-bottom: none;
+}
+
+.detail-label {
+  font-weight: 600;
+  color: #555;
+  font-size: 16px;
+}
+
+.detail-value {
+  color: #333;
+  font-size: 16px;
+  font-weight: 500;
 }
 
 </style>

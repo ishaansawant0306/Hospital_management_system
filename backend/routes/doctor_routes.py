@@ -2,7 +2,8 @@ from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity, get_jwt
 from datetime import date, timedelta
 from sqlalchemy import and_
-from models.models import db, User, Doctor, Patient, Appointment
+from models.models import db, User, Doctor, Patient, Appointment, Treatment
+import json
 
 doctor_bp = Blueprint('doctor_bp', __name__, url_prefix='/doctor')
 
@@ -229,6 +230,119 @@ def update_appointment_status():
     return jsonify({'msg': f'Appointment status updated to {new_status}'}), 200
 
 
+def _parse_treatment_notes(notes):
+    """Helper to safely parse treatment.notes JSON payload."""
+    default_payload = {
+        'visitType': '',
+        'testDone': '',
+        'medicines': [],
+        'notes': ''
+    }
+
+    if not notes:
+        return default_payload
+
+    try:
+        payload = json.loads(notes)
+        if isinstance(payload, dict):
+            default_payload.update({
+                key: payload.get(key, default_payload[key])
+                for key in default_payload.keys()
+            })
+    except (ValueError, TypeError):
+        pass
+
+    return default_payload
+
+
+def _doctor_and_appointment_for_current_user(appointment_id):
+    """Fetch doctor & appointment for the current JWT identity."""
+    claims = get_jwt()
+    current_user_id = get_jwt_identity()
+    current_role = claims.get('role')
+
+    if current_role != 'Doctor':
+        return None, None, jsonify({'error': 'Unauthorized: Doctor access required'}), 403
+
+    doctor = Doctor.query.filter_by(user_id=current_user_id).first()
+    if not doctor:
+        return None, None, jsonify({'error': 'Doctor profile not found'}), 404
+
+    appointment = Appointment.query.filter_by(id=appointment_id, doctor_id=doctor.id).first()
+    if not appointment:
+        return None, None, jsonify({'error': 'Appointment not found or unauthorized'}), 404
+
+    return doctor, appointment, None, None
+
+
+@doctor_bp.route('/treatment/<int:appointment_id>', methods=['GET'])
+@jwt_required()
+def get_treatment_details(appointment_id):
+    doctor, appointment, error_response, status_code = _doctor_and_appointment_for_current_user(appointment_id)
+    if error_response:
+        return error_response, status_code
+
+    treatment = appointment.treatment
+    if not treatment:
+        return jsonify({'treatment': None}), 200
+
+    notes_payload = _parse_treatment_notes(treatment.notes)
+    response_payload = {
+        'appointment_id': appointment.id,
+        'visitType': notes_payload.get('visitType', ''),
+        'testDone': notes_payload.get('testDone', ''),
+        'diagnosis': treatment.diagnosis or '',
+        'medicines': notes_payload.get('medicines', []),
+        'prescription': treatment.prescription or '',
+        'notes': notes_payload.get('notes', '')
+    }
+
+    return jsonify({'treatment': response_payload}), 200
+
+
+@doctor_bp.route('/treatment/<int:appointment_id>', methods=['POST'])
+@jwt_required()
+def save_treatment_details(appointment_id):
+    doctor, appointment, error_response, status_code = _doctor_and_appointment_for_current_user(appointment_id)
+    if error_response:
+        return error_response, status_code
+
+    data = request.get_json() or {}
+    medicines = data.get('medicines') or []
+    if not isinstance(medicines, list):
+        medicines = []
+
+    notes_payload = {
+        'visitType': data.get('visitType', ''),
+        'testDone': data.get('testDone', ''),
+        'medicines': medicines,
+        'notes': data.get('notes', '')
+    }
+
+    treatment = appointment.treatment
+    if not treatment:
+        treatment = Treatment(appointment_id=appointment.id)
+
+    treatment.diagnosis = data.get('diagnosis', '') or ''
+    treatment.prescription = data.get('prescription', '') or ''
+    treatment.notes = json.dumps(notes_payload)
+
+    db.session.add(treatment)
+    db.session.commit()
+
+    response_payload = {
+        'appointment_id': appointment.id,
+        'visitType': notes_payload['visitType'],
+        'testDone': notes_payload['testDone'],
+        'diagnosis': treatment.diagnosis,
+        'medicines': medicines,
+        'prescription': treatment.prescription,
+        'notes': notes_payload['notes']
+    }
+
+    return jsonify({'msg': 'Treatment saved successfully', 'treatment': response_payload}), 200
+
+
 @doctor_bp.route('/treatment/add', methods=['POST'])
 @jwt_required()
 def add_treatment():
@@ -316,10 +430,14 @@ def patient_history(patient_id):
             'doctor': appt.doctor.user.username if appt.doctor and appt.doctor.user else None,
         }
         if appt.treatment:
+            notes_payload = _parse_treatment_notes(appt.treatment.notes)
             record['treatment'] = {
                 'diagnosis': appt.treatment.diagnosis,
                 'prescription': appt.treatment.prescription,
-                'notes': appt.treatment.notes
+                'notes': notes_payload.get('notes', ''),
+                'visitType': notes_payload.get('visitType', ''),
+                'testDone': notes_payload.get('testDone', ''),
+                'medicines': notes_payload.get('medicines', [])
             }
         history.append(record)
 

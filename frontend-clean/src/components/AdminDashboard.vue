@@ -302,7 +302,7 @@
         this.searchQuery = '';
         await this.fetchDashboardData();
       },
-
+ 
       separateAppointments(appointments) {
         const today = new Date();
         today.setHours(0, 0, 0, 0);

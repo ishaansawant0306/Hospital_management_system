@@ -18,6 +18,15 @@ const routes = [
     }
   },
   {
+    path: '/register',
+    name: 'Register',
+    component: () => import('../components/Register.vue'),
+    meta: {
+      title: 'Hospital Management - Register',
+      requiresAuth: false
+    }
+  },
+  {
     path: '/admin',
     name: 'AdminDashboard',
     component: () => import('../components/AdminDashboard.vue'),
@@ -78,7 +87,7 @@ router.beforeEach((to, from, next) => {
       next();
     }
   } else {
-    if (token && to.path === '/login') {
+    if (token && (to.path === '/login' || to.path === '/register')) {
       const role = getUserRole();
       if (role === 'Admin') {
         next('/admin');
