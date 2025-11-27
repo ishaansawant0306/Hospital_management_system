@@ -46,8 +46,9 @@ export default {
       this.error = null;
 
       try {
-        // Build endpoint based on role
-        const endpoint = this.role === 'Doctor' 
+        // Build endpoint based on role (handle case sensitivity)
+        const roleLower = this.role ? this.role.toLowerCase() : '';
+        const endpoint = roleLower === 'doctor' 
           ? `/api/admin/doctors/${this.entity.id}` 
           : `/api/admin/patients/${this.entity.id}`;
 

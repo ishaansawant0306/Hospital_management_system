@@ -119,7 +119,7 @@ export default {
           }
         }, 1000);
       } catch (err) {
-        this.error = err.message || 'An error occurred during login';
+        this.error = err.response?.data?.msg || err.response?.data?.error || err.message || 'An error occurred during login';
         console.error('Login error:', err);
       } finally {
         this.loading = false;

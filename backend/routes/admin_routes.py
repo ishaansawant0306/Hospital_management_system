@@ -45,10 +45,12 @@ def list_doctors():
             doctor_list.append({
                 'id': doc.id,
                 'user_id': doc.user_id,
+                'doctor_id': doc.doctor_id,
                 'name': doc.user.username if doc.user else 'N/A',
                 'email': doc.user.email if doc.user else 'N/A',
                 'specialization': doc.specialization,
                 'availability': doc.availability,
+                'address': doc.address if doc.address else 'N/A',
                 'contact_info': getattr(doc.user, 'contact_info', 'N/A') if doc.user else 'N/A',
                 'is_blacklisted': doc.user.is_blacklisted if doc.user else False
             })
@@ -71,9 +73,11 @@ def create_doctor():
         # Validate required fields
         name = data.get('name')
         email = data.get('email')
-        password = data.get('password')  # NOW REQUIRED
+        password = data.get('password')
+        doctor_id = data.get('doctor_id')  # Unique doctor ID
         specialization = data.get('specialization')
         availability = data.get('availability', '{}')
+        address = data.get('address', '')  # Optional address
 
         # Check all required fields
         if not name or not specialization:
@@ -84,10 +88,17 @@ def create_doctor():
             
         if not password:
             return jsonify({'msg': 'Password is required'}), 400
+            
+        if not doctor_id:
+            return jsonify({'msg': 'Doctor ID is required'}), 400
 
         # Check if email already exists
         if User.query.filter_by(email=email).first():
             return jsonify({'msg': 'Email already exists'}), 400
+            
+        # Check if doctor_id already exists
+        if Doctor.query.filter_by(doctor_id=doctor_id).first():
+            return jsonify({'msg': 'Doctor ID already exists. Please use a unique ID.'}), 400
 
         # Generate base username from name
         username = name.lower().replace(' ', '_')
@@ -112,8 +123,10 @@ def create_doctor():
         # Create Doctor record linked to User
         doctor = Doctor(
             user_id=user.id,
+            doctor_id=doctor_id,
             specialization=specialization,
-            availability=availability
+            availability=availability,
+            address=address
         )
         db.session.add(doctor)
         db.session.commit()
@@ -123,10 +136,12 @@ def create_doctor():
             'doctor': {
                 'id': doctor.id,
                 'user_id': user.id,
+                'doctor_id': doctor.doctor_id,
                 'name': user.username,
                 'email': user.email,
                 'specialization': specialization,
-                'availability': availability
+                'availability': availability,
+                'address': address
             }
         }), 201
 
@@ -155,11 +170,26 @@ def update_doctor(doctor_id):
             doctor.specialization = data['specialization']
         if 'availability' in data:
             doctor.availability = data['availability']
+        if 'doctor_id' in data:
+            # Check for uniqueness if changing doctor_id
+            if doctor.doctor_id != data['doctor_id']:
+                existing = Doctor.query.filter_by(doctor_id=data['doctor_id']).first()
+                if existing:
+                    return jsonify({'error': 'Doctor ID already exists'}), 400
+            doctor.doctor_id = data['doctor_id']
+        if 'address' in data:
+            doctor.address = data['address']
 
         # Update user fields if provided
         if 'name' in data:
             doctor.user.username = data['name']
+        # Email update is restricted by frontend but backend should handle it if sent
         if 'email' in data:
+            # Check uniqueness
+            if doctor.user.email != data['email']:
+                existing = User.query.filter_by(email=data['email']).first()
+                if existing:
+                    return jsonify({'error': 'Email already exists'}), 400
             doctor.user.email = data['email']
 
         db.session.commit()
@@ -172,7 +202,9 @@ def update_doctor(doctor_id):
                 'name': doctor.user.username,
                 'email': doctor.user.email,
                 'specialization': doctor.specialization,
-                'availability': doctor.availability
+                'availability': doctor.availability,
+                'doctor_id': getattr(doctor, 'doctor_id', None),
+                'address': getattr(doctor, 'address', None)
             }
         }), 200
     except Exception as e:
@@ -525,12 +557,18 @@ def search_patients():
         if not query_str:
             return jsonify({'patients': []}), 200
 
-        # Search in patient name (via user.username), email, or contact info
-        patients = Patient.query.filter(
+        # Search in patient name (via user.username), email, contact info, or ID
+        criteria = (
             (Patient.user.has(User.username.ilike(f'%{query_str}%'))) |
             (Patient.user.has(User.email.ilike(f'%{query_str}%'))) |
             (Patient.contact_info.ilike(f'%{query_str}%'))
-        ).all()
+        )
+
+        # If query is numeric, also check ID
+        if query_str.isdigit():
+            criteria = criteria | (Patient.id == int(query_str))
+
+        patients = Patient.query.filter(criteria).all()
 
         patient_list = []
         for pat in patients:

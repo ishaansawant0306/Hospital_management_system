@@ -1,53 +1,59 @@
 <template>
-  <div class="dashboard-container">
-    <div class="header">
-      <h1>Patient Dashboard</h1>
-      <button @click="logout" class="logout-btn">Logout</button>
-    </div>
+  <div class="patient-dashboard">
 
-    <div v-if="loading" class="loading">Loading dashboard data...</div>
-    <div v-else-if="error" class="error-message">{{ error }}</div>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg bg-white shadow-sm px-4 py-3 mb-4">
+      <div class="container-fluid navbar-inner">
+        <a class="navbar-brand site-logo" href="#">TryggHelse</a>
 
-    <div v-else>
-      <div class="dashboard-stats">
-        <div class="stat-card">
-          <h3>Upcoming Appointments</h3>
-          <p class="stat-number">{{ stats.upcomingAppointments }}</p>
-        </div>
+        <span class="welcome-text">Welcome Pqrst</span>
 
-        <div class="stat-card">
-          <h3>Past Visits</h3>
-          <p class="stat-number">{{ stats.pastVisits }}</p>
-        </div>
+        <button @click="logout" class="logout-btn">Logout</button>
+      </div>
+    </nav>
 
-        <div class="stat-card">
-          <h3>Prescriptions</h3>
-          <p class="stat-number">{{ stats.prescriptions }}</p>
+    <!-- Departments Section -->
+    <div class="section-card">
+      <h2 class="section-title">Departments</h2>
+
+      <div class="department-list">
+        <div v-for="dept in departments" :key="dept.id" class="department-item">
+          <span class="department-name">{{ dept.name }}</span>
+          <button @click="viewDepartment(dept.id)" class="btn-view-details">view details</button>
         </div>
       </div>
-
-      <section class="dashboard-section">
-        <h2>Appointment History</h2>
-        <table class="appointments-table">
-          <thead>
-            <tr>
-              <th>Sr No.</th>
-              <th>Doctor Name</th>
-              <th>Department</th>
-              <th>Status</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="appt in appointments" :key="appt.id">
-              <td>{{ appt.id }}</td>
-              <td>{{ appt.doctor }}</td>
-              <td>{{ appt.department }}</td>
-              <td>{{ appt.status }}</td>
-            </tr>
-          </tbody>
-        </table>
-      </section>
     </div>
+
+    <!-- Upcoming Appointments Section -->
+    <div class="section-card">
+      <h2 class="section-title">Upcoming Appointments</h2>
+
+      <table class="appointment-table">
+        <thead>
+          <tr>
+            <th>Sr No.</th>
+            <th>Doctor Name</th>
+            <th>Deptt</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-for="appt in upcomingAppointments" :key="appt.id">
+            <td>{{ appt.id }}.</td>
+            <td>{{ appt.doctorName }}</td>
+            <td>{{ appt.department }}</td>
+            <td>{{ appt.date }}</td>
+            <td>{{ appt.time }}</td>
+            <td>
+              <button @click="cancelAppointment(appt.id)" class="btn-cancel">cancel</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
   </div>
 </template>
 
@@ -58,14 +64,20 @@ export default {
   name: 'PatientDashboard',
   data() {
     return {
-      stats: {
-        upcomingAppointments: 2,
-        pastVisits: 5,
-        prescriptions: 3,
-      },
-      appointments: [
-        { id: 2001, doctor: 'Dr. Sharma', department: 'Cardiology', status: 'Completed' },
-        { id: 2002, doctor: 'Dr. Mehta', department: 'Dermatology', status: 'Upcoming' },
+      patientName: 'Pqrst',
+      departments: [
+        { id: 1, name: 'Cardiology' },
+        { id: 2, name: 'Oncology' },
+        { id: 3, name: 'General' },
+      ],
+      upcomingAppointments: [
+        { 
+          id: 1001, 
+          doctorName: 'Dr. abcde', 
+          department: 'general', 
+          date: '24/09/2025', 
+          time: '08 am - 12 pm' 
+        },
       ],
       loading: false,
       error: null,
@@ -78,6 +90,18 @@ export default {
     }
   },
   methods: {
+    viewDepartment(deptId) {
+      console.log('Viewing department:', deptId);
+      alert(`Viewing details for department ${deptId}`);
+    },
+    cancelAppointment(apptId) {
+      console.log('Cancelling appointment:', apptId);
+      if (confirm('Are you sure you want to cancel this appointment?')) {
+        alert('Appointment cancelled successfully!');
+        // Remove from list
+        this.upcomingAppointments = this.upcomingAppointments.filter(a => a.id !== apptId);
+      }
+    },
     logout() {
       clearToken();
       this.$router.push('/login');
@@ -87,88 +111,168 @@ export default {
 </script>
 
 <style scoped>
-.dashboard-container {
-  padding: 20px;
-  max-width: 1200px;
-  margin: 0 auto;
+.patient-dashboard {
+  background: #eaf9e9;
+  min-height: 100vh;
+  padding: 20px 40px;
+  zoom: 90%;
 }
 
-.header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+/* Navbar */
+.navbar {
+  background: #eaf9e9;
+  border-bottom: 1px solid #d0e8cf;
+  padding: 12px 22px;
+  margin-left: -40px;
+  margin-right: -40px;
+  margin-top: -20px;
   margin-bottom: 30px;
-  padding-bottom: 20px;
-  border-bottom: 2px solid #007bff;
 }
 
-h1 {
+.site-logo {
+  color: #0aa64a;
+  font-size: 30px;
+  font-weight: 700;
+  font-family: Georgia, 'Times New Roman', Times, serif;
+  letter-spacing: 0.6px;
+  text-decoration: none;
+}
+
+.navbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  position: relative;
+  padding: 0 40px;
+}
+
+.welcome-text {
+  font-size: 40px;
+  font-weight: 600;
   color: #333;
-  margin: 0;
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
 }
 
 .logout-btn {
-  padding: 10px 20px;
-  background-color: #d32f2f;
+  background-color: #dc3545;
   color: white;
   border: none;
-  border-radius: 4px;
+  padding: 10px 25px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
   cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.3s;
+  transition: background-color 0.2s;
 }
 
 .logout-btn:hover {
-  background-color: #b71c1c;
+  background-color: #c82333;
 }
 
-.dashboard-stats {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
-}
-
-.stat-card {
+/* Section Cards */
+.section-card {
   background: white;
-  border: 1px solid #ddd;
+  border-radius: 12px;
+  padding: 30px;
+  margin-bottom: 25px;
+  width: 55%;
+  margin-left: auto;
+  margin-right: auto;
+  box-shadow: 0px 2px 8px rgba(0,0,0,0.08);
+}
+
+.section-title {
+  font-size: 28px;
+  font-weight: 700;
+  color: #333;
+  margin-bottom: 25px;
+}
+
+/* Department List */
+.department-list {
+  margin-bottom: 0;
+}
+
+.department-item {
+  background: white;
+  border: 1px solid #e0e0e0;
+  padding: 18px 25px;
   border-radius: 8px;
-  padding: 20px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-  transition: transform 0.3s, box-shadow 0.3s;
+  margin-bottom: 15px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: box-shadow 0.2s;
 }
 
-.stat-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+.department-item:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
 }
 
-.stat-card h3 {
-  color: #666;
-  margin-top: 0;
+.department-name {
+  font-size: 16px;
+  color: #333;
+  font-weight: 500;
+}
+
+.btn-view-details {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 8px 25px;
+  border-radius: 6px;
   font-size: 14px;
-  text-transform: uppercase;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
 }
 
-.stat-number {
-  color: #007bff;
-  font-size: 36px;
-  font-weight: bold;
-  margin: 10px 0 0 0;
+.btn-view-details:hover {
+  background-color: #0056b3;
 }
 
-.appointments-table {
+/* Appointment Table */
+.appointment-table {
   width: 100%;
   border-collapse: collapse;
-  margin-top: 20px;
 }
 
-.appointments-table th,
-.appointments-table td {
-  border: 1px solid #ddd;
-  padding: 8px;
+.appointment-table th,
+.appointment-table td {
+  padding: 15px;
+  text-align: left;
+  border-bottom: 1px solid #e0e0e0;
 }
 
-.appointments-table th {
-  background-color: #f2f2f2;
+.appointment-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+  color: #555;
+  font-size: 16px;
+}
+
+.appointment-table td {
+  font-size: 15px;
+  color: #333;
+}
+
+.btn-cancel {
+  background-color: white;
+  color: #dc3545;
+  border: 1px solid #dc3545;
+  padding: 8px 18px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-cancel:hover {
+  background-color: #dc3545;
+  color: white;
 }
 </style>

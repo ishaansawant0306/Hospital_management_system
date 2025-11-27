@@ -1,25 +1,25 @@
 <template>
-  <div class="modal fade" id="editDoctorModal" tabindex="-1">
+  <div class="modal fade" id="editPatientModal" tabindex="-1">
     <div class="modal-dialog modal-dialog-centered modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title">
             <i class="bi bi-pencil-square me-2"></i>
-            Edit Doctor Profile
+            Edit Patient Profile
           </h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
         </div>
         <div class="modal-body">
           <form @submit.prevent="submitEdit">
             <div class="row">
-              <!-- Full Name -->
+              <!-- Name -->
               <div class="col-md-6 mb-3">
-                <label for="editDoctorName" class="form-label">
+                <label for="editPatientName" class="form-label">
                   <i class="bi bi-person me-1"></i>Full Name <span class="text-danger">*</span>
                 </label>
                 <input
                   v-model="formData.name"
-                  id="editDoctorName"
+                  id="editPatientName"
                   type="text"
                   class="form-control"
                   required
@@ -28,12 +28,12 @@
 
               <!-- Email (Read-only) -->
               <div class="col-md-6 mb-3">
-                <label for="editDoctorEmail" class="form-label">
+                <label for="editPatientEmail" class="form-label">
                   <i class="bi bi-envelope me-1"></i>Email Address
                 </label>
                 <input
                   v-model="formData.email"
-                  id="editDoctorEmail"
+                  id="editPatientEmail"
                   type="email"
                   class="form-control"
                   readonly
@@ -59,48 +59,61 @@
                 <small class="form-text text-muted">Password cannot be changed here</small>
               </div>
 
-              <!-- Doctor ID -->
+              <!-- Age -->
               <div class="col-md-6 mb-3">
-                <label for="editDoctorId" class="form-label">
-                  <i class="bi bi-card-text me-1"></i>Doctor ID <span class="text-danger">*</span>
+                <label for="editPatientAge" class="form-label">
+                  <i class="bi bi-calendar3 me-1"></i>Age
                 </label>
                 <input
-                  v-model="formData.doctor_id"
-                  id="editDoctorId"
-                  type="text"
+                  v-model.number="formData.age"
+                  id="editPatientAge"
+                  type="number"
                   class="form-control"
-                  required
+                  min="0"
+                  max="150"
                 />
               </div>
             </div>
 
             <div class="row">
-              <!-- Specialization (Full Width in this row) -->
-              <div class="col-12 mb-3">
-                <label for="editDoctorSpecialization" class="form-label">
-                  <i class="bi bi-heart-pulse me-1"></i>Specialization/Department <span class="text-danger">*</span>
+              <!-- Gender -->
+              <div class="col-md-6 mb-3">
+                <label for="editPatientGender" class="form-label">
+                  <i class="bi bi-gender-ambiguous me-1"></i>Gender
                 </label>
-                <input
-                  v-model="formData.specialization"
-                  id="editDoctorSpecialization"
-                  type="text"
+                <select
+                  v-model="formData.gender"
+                  id="editPatientGender"
                   class="form-control"
-                  required
-                />
+                >
+                  <option value="">Select Gender</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
             </div>
 
-            <!-- Address (Full Width) -->
+            <!-- Contact Info (Full Width) -->
             <div class="mb-3">
-              <label for="editDoctorAddress" class="form-label">
-                <i class="bi bi-geo-alt me-1"></i>Address
+              <label for="editPatientContact" class="form-label">
+                <i class="bi bi-telephone me-1"></i>Contact Information
               </label>
-              <textarea
-                v-model="formData.address"
-                id="editDoctorAddress"
+              <input
+                v-model="formData.contact_info"
+                id="editPatientContact"
+                type="text"
                 class="form-control"
-                rows="2"
-              ></textarea>
+                placeholder="Phone number or contact details"
+              />
+            </div>
+
+            <!-- Password Note -->
+            <div class="alert alert-info d-flex align-items-center" role="alert">
+              <i class="bi bi-info-circle-fill me-2"></i>
+              <div>
+                <strong>Note:</strong> Password cannot be changed from admin panel. Patient must change their own password.
+              </div>
             </div>
 
             <!-- Error Alert -->
@@ -138,9 +151,9 @@ import 'bootstrap/dist/js/bootstrap.bundle.min.js';
 import api from '../../api/axiosConfig';
 
 export default {
-  name: 'EditDoctorModal',
+  name: 'EditPatientModal',
   props: {
-    doctor: {
+    patient: {
       type: Object,
       default: () => ({})
     }
@@ -150,9 +163,9 @@ export default {
       formData: {
         name: '',
         email: '',
-        doctor_id: '',
-        specialization: '',
-        address: ''
+        age: null,
+        gender: '',
+        contact_info: ''
       },
       isLoading: false,
       error: null,
@@ -160,17 +173,16 @@ export default {
     };
   },
   watch: {
-    doctor: {
+    patient: {
       immediate: true,
-      handler(newDoctor) {
-        console.log('EditDoctorModal received doctor:', newDoctor);
-        if (newDoctor && newDoctor.id) {
+      handler(newPatient) {
+        if (newPatient && newPatient.id) {
           this.formData = {
-            name: this.formatName(newDoctor.name) || '',
-            email: newDoctor.email || '',
-            doctor_id: newDoctor.doctor_id || '',
-            specialization: newDoctor.specialization || '',
-            address: (newDoctor.address && newDoctor.address !== 'N/A') ? newDoctor.address : ''
+            name: this.formatName(newPatient.name) || '',
+            email: newPatient.email || '',
+            age: newPatient.age || null,
+            gender: newPatient.gender || '',
+            contact_info: newPatient.contact_info || ''
           };
         }
       }
@@ -186,11 +198,7 @@ export default {
     },
     async submitEdit() {
       if (!this.formData.name.trim()) {
-        this.error = 'Doctor name is required';
-        return;
-      }
-      if (!this.formData.specialization.trim()) {
-        this.error = 'Specialization is required';
+        this.error = 'Patient name is required';
         return;
       }
 
@@ -202,29 +210,29 @@ export default {
         // Only send editable fields
         const updateData = {
           name: this.formData.name,
-          specialization: this.formData.specialization,
-          address: this.formData.address,
-          doctor_id: this.formData.doctor_id
+          age: this.formData.age,
+          gender: this.formData.gender,
+          contact_info: this.formData.contact_info
         };
 
-        await api.patch(`/api/admin/doctors/${this.doctor.id}`, updateData);
+        await api.patch(`/api/admin/patients/${this.patient.id}`, updateData);
 
-        this.success = 'Doctor updated successfully!';
+        this.success = 'Patient updated successfully!';
 
         // Emit event to parent
         this.$emit('updated');
 
         // Close modal after brief delay
         setTimeout(() => {
-          const modal = bootstrap.Modal.getInstance(document.getElementById('editDoctorModal'));
+          const modal = bootstrap.Modal.getInstance(document.getElementById('editPatientModal'));
           if (modal) {
             modal.hide();
           }
         }, 1500);
 
       } catch (err) {
-        this.error = err.response?.data?.msg || err.response?.data?.error || err.message || 'An error occurred while updating the doctor';
-        console.error('Edit doctor error:', err);
+        this.error = err.response?.data?.msg || err.response?.data?.error || err.message || 'An error occurred while updating the patient';
+        console.error('Edit patient error:', err);
       } finally {
         this.isLoading = false;
       }
@@ -242,7 +250,7 @@ export default {
 }
 
 .modal-header {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
   color: white;
   border-bottom: none;
   border-radius: 12px 12px 0 0;
@@ -278,7 +286,7 @@ export default {
 }
 
 .form-label i {
-  color: #007bff;
+  color: #28a745;
 }
 
 .form-control {
@@ -290,8 +298,8 @@ export default {
 }
 
 .form-control:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.15);
+  border-color: #28a745;
+  box-shadow: 0 0 0 0.2rem rgba(40, 167, 69, 0.15);
 }
 
 .form-control:disabled,
@@ -299,11 +307,6 @@ export default {
   background-color: #e9ecef;
   opacity: 0.7;
   cursor: not-allowed;
-}
-
-textarea.form-control {
-  resize: vertical;
-  min-height: 60px;
 }
 
 .form-text {
@@ -333,6 +336,11 @@ textarea.form-control {
 .alert-success {
   background-color: #e8f5e9;
   color: #2e7d32;
+}
+
+.alert-info {
+  background-color: #e3f2fd;
+  color: #1565c0;
 }
 
 .alert i {
@@ -367,14 +375,14 @@ textarea.form-control {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #007bff 0%, #0056b3 100%);
+  background: linear-gradient(135deg, #28a745 0%, #1e7e34 100%);
   border: none;
 }
 
 .btn-primary:hover {
-  background: linear-gradient(135deg, #0056b3 0%, #004085 100%);
+  background: linear-gradient(135deg, #1e7e34 0%, #155724 100%);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(0, 123, 255, 0.3);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
 }
 
 .btn:disabled {

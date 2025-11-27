@@ -99,7 +99,7 @@ def login():
         user = User.query.filter_by(email=data['email']).first()
         if user and check_password_hash(user.password, data['password']):
             if user.is_blacklisted:
-                return jsonify({'msg': 'Your account has been blocked by Admin'}), 403
+                return jsonify({'msg': 'You cannot login. You have been blacklisted'}), 403
 
             token = create_access_token(
                 identity=str(user.id),

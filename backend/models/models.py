@@ -52,13 +52,17 @@ class Doctor(db.Model):
     Attributes:
         id (int): Primary key, unique identifier for the doctor
         user_id (int): Foreign key linking to User model
+        doctor_id (str): Unique doctor identification number
         specialization (str): Medical specialization (e.g., Cardiology, Neurology)
         availability (str): Doctor's availability schedule
+        address (str): Doctor's address
     """
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    doctor_id = db.Column(db.String(50), unique=True, nullable=False)  # Unique doctor ID
     specialization = db.Column(db.String(100), nullable=False)
     availability = db.Column(db.String, nullable=True)
+    address = db.Column(db.String(300), nullable=True)  # Doctor's address
 
     # Relationship: One Doctor can have multiple Appointments
     appointments = db.relationship('Appointment', backref='doctor')
