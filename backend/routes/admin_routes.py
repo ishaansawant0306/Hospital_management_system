@@ -515,15 +515,18 @@ def search_doctors():
         return jsonify({'error': 'Unauthorized: Admin only'}), 403
 
     try:
-        query_str = request.args.get('q', '').lower()
+        query_str = request.args.get('q', '').strip()
+        with open('search_debug.log', 'a') as f:
+            f.write(f"Search query: '{query_str}'\n")
 
         if not query_str:
             return jsonify({'doctors': []}), 200
 
-        # Search in doctor name (via user.username) or specialization
+        # Search in doctor name (via user.username), specialization, or doctor_id
         doctors = Doctor.query.filter(
             (Doctor.specialization.ilike(f'%{query_str}%')) |
-            (Doctor.user.has(User.username.ilike(f'%{query_str}%')))
+            (Doctor.user.has(User.username.ilike(f'%{query_str}%'))) |
+            (Doctor.doctor_id.ilike(f'%{query_str}%'))
         ).all()
 
         doctor_list = []
@@ -552,7 +555,7 @@ def search_patients():
         return jsonify({'error': 'Unauthorized: Admin only'}), 403
 
     try:
-        query_str = request.args.get('q', '').lower()
+        query_str = request.args.get('q', '').strip()
 
         if not query_str:
             return jsonify({'patients': []}), 200

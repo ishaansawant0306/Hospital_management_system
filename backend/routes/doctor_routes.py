@@ -131,11 +131,13 @@ def doctor_dashboard():
 def update_availability():
     """
     Update doctor's availability for the next 7 days.
-    Expects JSON payload with keys like:
+    Expects JSON payload with array of availability objects:
     {
-        "Monday": ["10:00", "14:00"],
-        "Tuesday": ["11:00"],
-        ...
+        "availability": [
+            {"date": "27/11/2025", "morning": true, "evening": false},
+            {"date": "28/11/2025", "morning": true, "evening": true},
+            ...
+        ]
     }
     """
     claims = get_jwt()
@@ -150,15 +152,42 @@ def update_availability():
         return jsonify({'error': 'Doctor profile not found'}), 404
 
     data = request.get_json()
-    if not data:
+    if not data or 'availability' not in data:
         return jsonify({'error': 'No availability data provided'}), 400
 
-    # Convert dict to JSON string and store
+    # Convert availability array to JSON string and store
     import json
-    doctor.availability = json.dumps(data)
+    doctor.availability = json.dumps(data['availability'])
     db.session.commit()
 
-    return jsonify({'msg': 'Availability updated successfully'}), 200
+    return jsonify({
+        'msg': 'Availability updated successfully',
+        'availability': data['availability']
+    }), 200
+
+
+@doctor_bp.route('/availability', methods=['GET'])
+@jwt_required()
+def get_availability():
+    """Get doctor's current availability."""
+    claims = get_jwt()
+    current_user_id = get_jwt_identity()
+    current_role = claims.get('role')
+
+    if current_role != 'Doctor':
+        return jsonify({'error': 'Unauthorized: Doctor access required'}), 403
+
+    doctor = Doctor.query.filter_by(user_id=current_user_id).first()
+    if not doctor:
+        return jsonify({'error': 'Doctor profile not found'}), 404
+
+    import json
+    availability = json.loads(doctor.availability) if doctor.availability else []
+
+    return jsonify({
+        'availability': availability
+    }), 200
+
 
 
 @doctor_bp.route('/appointment/update-status', methods=['POST'])

@@ -1,0 +1,4 @@
+
+$token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc2NDI1MzA1OSwianRpIjoiZmFhYzNjYWUtYTBkNC00ZWM5LWE2MTYtMTZkNjUxZmY1NGFiIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEiLCJuYmYiOjE3NjQyNTMwNTksImNzcmYiOiI3ZjJjZTcyZC1iMzdlLTQ4NzktOTAxNi05MGU5ZWRkZTU3ZjUiLCJleHAiOjE3NjQyNTM5NTksInJvbGUiOiJBZG1pbiJ9.mYX7PExVRkiRXCxDb_8NsXQSnWwQy5oGyL0MemWSSgQ"
+$url = "http://127.0.0.1:5000/api/admin/search/doctors?q=DOC-2345"
+curl.exe -H "Authorization: Bearer $token" $url
