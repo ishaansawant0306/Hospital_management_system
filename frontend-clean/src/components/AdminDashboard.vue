@@ -645,7 +645,7 @@
 
 .edit-btn { border-color: #007bff; color: #007bff; background: white; }
 .delete-btn { border-color: red; color: red; background: white; }
-.blacklist-btn { border-color: black; color: black; background: white; }
+.blacklist-btn { border-color: rgb(8, 8, 8); color:#646363; background: white; }
 
 /* Table */
 .appointment-table {
