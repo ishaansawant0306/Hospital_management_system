@@ -11,7 +11,7 @@ Provides endpoints for admin dashboard:
 
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt
-from models.models import db, User, Doctor, Patient, Appointment
+from models.models import db, User, Doctor, Patient, Appointment, Treatment
 from werkzeug.security import generate_password_hash
 from datetime import datetime, timedelta
 import json
@@ -793,3 +793,59 @@ def debug_button():
     print("Entity ID:", data.get("id"))
     print("=====================\n")
     return {"msg": "Printed"}
+
+
+@admin_bp.route('/patient/history/<int:patient_id>', methods=['GET'])
+@jwt_required()
+def get_patient_history(patient_id):
+    """
+    Fetch full medical history of a patient for Admin.
+    Returns all appointments + treatment records.
+    """
+    claims = get_jwt()
+    if not check_admin_role(claims):
+        return jsonify({'error': 'Unauthorized: Admin only'}), 403
+
+    try:
+        patient = Patient.query.get(patient_id)
+        if not patient:
+            return jsonify({'error': 'Patient not found'}), 404
+
+        history = []
+        for appt in patient.appointments:
+            record = {
+                'appointment_id': appt.id,
+                'date': appt.date.isoformat(),
+                'time': appt.time.strftime('%H:%M'),
+                'status': appt.status,
+                'doctor': appt.doctor.user.username if appt.doctor and appt.doctor.user else None,
+            }
+            if appt.treatment:
+                # Helper to parse notes if needed, or just return raw
+                try:
+                    notes_payload = json.loads(appt.treatment.notes)
+                except:
+                    notes_payload = {}
+                
+                record['treatment'] = {
+                    'diagnosis': appt.treatment.diagnosis,
+                    'prescription': appt.treatment.prescription,
+                    'notes': notes_payload.get('notes', ''),
+                    'visitType': notes_payload.get('visitType', ''),
+                    'testDone': notes_payload.get('testDone', ''),
+                    'medicines': notes_payload.get('medicines', [])
+                }
+            history.append(record)
+
+        return jsonify({
+            'patient': {
+                'id': patient.id,
+                'name': patient.user.username if patient.user else None,
+                'age': patient.age,
+                'gender': patient.gender,
+                'contact_info': patient.contact_info
+            },
+            'medical_history': history
+        }), 200
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

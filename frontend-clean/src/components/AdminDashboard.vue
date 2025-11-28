@@ -111,12 +111,41 @@
           <tr v-if="upcomingAppointments.length === 0">
             <td colspan="5" class="text-center">No upcoming appointments</td>
           </tr>
-          <tr v-for="appt in upcomingAppointments" :key="appt.id">
-            <td>{{ appt.id }}.</td>
+          <tr v-for="(appt, index) in upcomingAppointments" :key="appt.id">
+            <td>{{ index + 1 }}.</td>
             <td>{{ appt.patient }}</td>
             <td>{{ appt.doctor }}</td>
             <td>{{ appt.department || 'N/A' }}</td>
-            <td><button class="view-btn" @click="openAppointmentDetail(appt.id)">view</button></td>
+            <td><button class="view-btn" @click="openAppointmentDetail(appt)">view</button></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Past Appointments -->
+    <div class="section-card">
+      <h2>Past Appointments</h2>
+
+      <table class="appointment-table">
+        <thead>
+          <tr>
+            <th>Sr No.</th>
+            <th>Patient Name</th>
+            <th>Doctor Name</th>
+            <th>Department</th>
+            <th>Patient History</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="pastAppointments.length === 0">
+            <td colspan="5" class="text-center">No past appointments</td>
+          </tr>
+          <tr v-for="(appt, index) in pastAppointments" :key="appt.id">
+            <td>{{ index + 1 }}.</td>
+            <td>{{ appt.patient }}</td>
+            <td>{{ appt.doctor }}</td>
+            <td>{{ appt.department || 'N/A' }}</td>
+            <td><button class="view-btn" @click="openAppointmentDetail(appt)">view</button></td>
           </tr>
         </tbody>
       </table>
@@ -128,6 +157,10 @@
     <EditPatientModal :patient="selectedPatient" @updated="handleEntityUpdated" />
     <DeleteConfirmationModal :entity="selectedEntity" :role="selectedRole" @deleted="fetchDashboardData" />
     <BlacklistModal :entity="selectedEntity" :role="selectedRole" @blacklisted="fetchDashboardData" />
+    <AppointmentDetailModal 
+      :appointment-id="selectedAppointmentId" 
+      :patient-id="selectedPatientId"
+    />
 
     <!-- Toast Notification -->
     <div class="toast-container position-fixed top-0 end-0 p-3" style="margin-top: 80px; z-index: 1055;">
@@ -162,6 +195,7 @@
   import DeleteConfirmationModal from './modals/DeleteConfirmationModal.vue';
   import BlacklistModal from './modals/BlacklistModal.vue';
   import CreateDoctorModal from './modals/CreateDoctorModal.vue';
+  import AppointmentDetailModal from './modals/AppointmentDetailModal.vue';
 
   export default {
     name: 'AdminDashboard',
@@ -170,7 +204,8 @@
       EditPatientModal,
       DeleteConfirmationModal,
       BlacklistModal,
-      CreateDoctorModal
+      CreateDoctorModal,
+      AppointmentDetailModal
     },
     data() {
       return {
@@ -190,6 +225,7 @@
         selectedEntity: null,
         selectedRole: null,
         selectedAppointmentId: null,
+        selectedPatientId: null,
         searchQuery: '',
         searchType: 'all',
         isSearching: false,
@@ -314,10 +350,21 @@
           const apptDate = new Date(appt.date);
           apptDate.setHours(0, 0, 0, 0);
 
-          if (apptDate >= today) {
-            this.upcomingAppointments.push(appt);
-          } else {
+          // If status is Completed or Cancelled, or date is in past, it goes to Past Appointments
+          // But user specifically asked: "when a appointment is compelted it muist be shown unders a new box called past appointmetn"
+          // And "whenver the appointed is booked it must show under Upcoming Appointments"
+          
+          // Logic:
+          // Upcoming: Status != Completed AND Status != Cancelled AND Date >= Today
+          // Past: Status == Completed OR Status == Cancelled OR Date < Today
+          
+          const isPastDate = apptDate < today;
+          const isCompletedOrCancelled = ['Completed', 'Cancelled'].includes(appt.status);
+
+          if (isCompletedOrCancelled || isPastDate) {
             this.pastAppointments.push(appt);
+          } else {
+            this.upcomingAppointments.push(appt);
           }
         });
       },
@@ -365,7 +412,7 @@
         this.fetchDashboardData();
       },
 
-      openCreateModal() {
+      openCreateDoctorModal() {
         const modal = new bootstrap.Modal(document.getElementById('createDoctorModal'));
         modal.show();
       },
@@ -404,10 +451,18 @@
       },
 
 
-      openAppointmentDetail(appointmentId) {
-        this.selectedAppointmentId = appointmentId;
-        const modal = new bootstrap.Modal(document.getElementById('appointmentDetailModal'));
-        modal.show();
+      openAppointmentDetail(appointment) {
+        this.selectedAppointmentId = appointment.id;
+        this.selectedPatientId = appointment.patient_id; // Ensure backend sends patient_id
+        
+        // Wait for DOM update then show modal
+        this.$nextTick(() => {
+          const modalEl = document.getElementById('appointmentDetailModal');
+          if (modalEl) {
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+          }
+        });
       },
 
       performLiveSearch() {
@@ -610,8 +665,8 @@
   background: #0ca020;
   color: white;
   border: none;
-  padding: 6px 12px;
-  border-radius: 8px;
+  padding: 8px 20px;
+  border-radius: 20px;
   font-size: 15px; /* Increased font size */
 }
 
@@ -701,5 +756,18 @@
   text-align: center;
 }
 
+.btn-create {
+  background-color: #28a745; /* Bootstrap green */
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+}
+.btn-create:hover {
+  background-color: #218838;
+}
 
   </style>
+

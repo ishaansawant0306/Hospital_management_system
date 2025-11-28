@@ -61,13 +61,17 @@ def send_daily_reminders():
         doctor = Doctor.query.get(appt.doctor_id)
         doctor_user = User.query.get(doctor.user_id)
         
+        # Format names
+        patient_name = user.username.replace('_', ' ').title()
+        doctor_name = doctor_user.username.replace('_', ' ').title()
+        
         subject = f"Appointment Reminder: {today}"
-        body = f"Hello {user.username},\n\nYou have an appointment today with Dr. {doctor_user.username} at {appt.time}.\nPlease arrive on time."
+        body = f"Hello {patient_name},\n\nYou have an appointment today with Dr. {doctor_name} at {appt.time}.\nPlease arrive on time."
         
         send_email(user.email, subject, body)
         
         # Send to Google Chat as well
-        chat_message = f"🔔 *Daily Reminder*\nHi {user.username}, don't forget your appointment with Dr. {doctor_user.username} today at {appt.time}!"
+        chat_message = f"🔔 *Daily Reminder*\nHi {patient_name}, don't forget your appointment with Dr. {doctor_name} today at {appt.time}!"
         send_google_chat_webhook(chat_message)
     
     return f"Sent reminders for {len(appointments)} appointments."
@@ -87,8 +91,11 @@ def send_monthly_report():
         # Generate report data (mock)
         appointments_count = len(doctor.appointments)
         
+        # Format name
+        doctor_name = user.username.replace('_', ' ').title()
+        
         subject = "Monthly Activity Report"
-        body = f"<h1>Monthly Report</h1><p>Dr. {user.username}, you had {appointments_count} appointments this month.</p>"
+        body = f"<h1>Monthly Report</h1><p>Dr. {doctor_name}, you had {appointments_count} appointments this month.</p>"
         
         send_email(user.email, subject, body, is_html=True)
         
@@ -139,6 +146,7 @@ def export_patient_treatments(user_id):
     
     # Send to Google Chat
     download_link = f"http://localhost:5000/exports/{filename}"
-    send_google_chat_webhook(f"📂 *Export Complete*\nHi {user.username}, your treatment history is ready!\nDownload here: {download_link}")
+    formatted_name = user.username.replace('_', ' ').title()
+    send_google_chat_webhook(f"📂 *Export Complete*\nHi {formatted_name}, your treatment history is ready!\nDownload here: {download_link}")
     
     return f"Export generated: {filepath}"

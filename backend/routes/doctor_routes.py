@@ -76,7 +76,7 @@ def doctor_dashboard():
                 Appointment.doctor_id == doctor.id,
                 Appointment.date >= today,
                 Appointment.date <= end_day,
-                Appointment.status != 'Cancelled'
+                Appointment.status.notin_(['Cancelled', 'Completed'])
             )
         )
         .order_by(Appointment.date.asc(), Appointment.time.asc())

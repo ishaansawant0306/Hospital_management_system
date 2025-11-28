@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { getUserRole } from '../utils/tokenManager';
+import { getUserRole, getToken } from '../utils/tokenManager';
 
 
 
@@ -71,7 +71,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.meta.requiresAuth;
   const requiredRole = to.meta.requiredRole;
-  const token = localStorage.getItem('access_token');
+  const token = getToken();
   const userRole = getUserRole();
 
   if (to.meta.title) {
@@ -87,20 +87,9 @@ router.beforeEach((to, from, next) => {
       next();
     }
   } else {
-    if (token && (to.path === '/login' || to.path === '/register')) {
-      const role = getUserRole();
-      if (role === 'Admin') {
-        next('/admin');
-      } else if (role === 'Doctor') {
-        next('/doctor');
-      } else if (role === 'Patient') {
-        next('/patient');
-      } else {
-        next('/login');
-    }
-    } else {
-      next();
-    }
+    // Allow access to login/register even if authenticated
+    // This fixes the issue where users couldn't access login page to switch accounts
+    next();
   }
 });
 
