@@ -332,6 +332,10 @@ def book_appointment():
         if not doctor:
             return jsonify({'error': 'Doctor not found'}), 404
 
+        # Check if doctor is blacklisted
+        if doctor.user and doctor.user.is_blacklisted:
+            return jsonify({'error': 'This doctor is not available for appointments'}), 403
+
         # Parse date
         from datetime import datetime, time
         try:

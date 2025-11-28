@@ -25,6 +25,10 @@ def doctor_login():
     if not user or not check_password_hash(user.password, password):
         return jsonify({'msg': 'Invalid credentials'}), 401
 
+    # Check if doctor is blacklisted
+    if user.is_blacklisted:
+        return jsonify({'msg': 'You cannot login. You have been blacklisted'}), 403
+
     # Create JWT token
     access_token = create_access_token(identity=user.id, additional_claims={'role': user.role})
 
@@ -88,7 +92,8 @@ def doctor_dashboard():
 
     for a in appointments:
         p = Patient.query.get(a.patient_id)
-        if p:
+        # Filter out blacklisted patients
+        if p and p.user and not p.user.is_blacklisted:
             patient_ids.add(p.id)
             appointment_data.append({
                 'id': a.id,
@@ -107,13 +112,15 @@ def doctor_dashboard():
     if patient_ids:
         patient_rows = Patient.query.filter(Patient.id.in_(list(patient_ids))).all()
         for p in patient_rows:
-            patients.append({
-                'id': p.id,
-                'name': p.user.username if p.user else None,
-                'age': p.age,
-                'gender': p.gender,
-                'contact_info': p.contact_info,
-            })
+            # Double-check blacklist status
+            if p.user and not p.user.is_blacklisted:
+                patients.append({
+                    'id': p.id,
+                    'name': p.user.username if p.user else None,
+                    'age': p.age,
+                    'gender': p.gender,
+                    'contact_info': p.contact_info,
+                })
 
     return jsonify({
         'doctor': {
@@ -419,6 +426,10 @@ def patient_history(patient_id):
     patient = Patient.query.get(patient_id)
     if not patient:
         return jsonify({'error': 'Patient not found'}), 404
+
+    # Check if patient is blacklisted
+    if patient.user and patient.user.is_blacklisted:
+        return jsonify({'error': 'Patient record not accessible'}), 403
 
     history = []
     for appt in patient.appointments:
