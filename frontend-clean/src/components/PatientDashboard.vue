@@ -10,6 +10,7 @@
 
         <div class="navbar-actions">
           <button @click="openHistoryModal" class="history-btn">History</button>
+          <button @click="openEditProfileModal" class="edit-profile-btn">Edit Profile</button>
           <button @click="exportTreatments" class="export-btn">Export Treatments</button>
           <button @click="logout" class="logout-btn">Logout</button>
         </div>
@@ -28,6 +29,43 @@
       </div>
     </div>
 
+    <!-- Search Doctors Section -->
+    <div class="section-card">
+      <h2 class="section-title">Search Doctors</h2>
+      
+      <div class="search-container">
+        <input 
+          type="text" 
+          v-model="searchQuery" 
+          @keyup.enter="searchDoctors"
+          placeholder="Search by doctor name or specialization..."
+          class="search-input"
+        />
+        <button @click="searchDoctors" class="btn-search" :disabled="isSearching">
+          {{ isSearching ? 'Searching...' : 'Search' }}
+        </button>
+        <button v-if="searchQuery" @click="clearSearch" class="btn-clear">Clear</button>
+      </div>
+
+      <div v-if="searchResults.length > 0" class="search-results">
+        <h3 class="results-title">Search Results ({{ searchResults.length }})</h3>
+        <div v-for="doctor in searchResults" :key="doctor.id" class="doctor-result-card">
+          <div class="doctor-info">
+            <span class="doctor-name">{{ doctor.name }}</span>
+            <span class="doctor-spec">{{ doctor.specialization }}</span>
+          </div>
+          <div class="doctor-actions">
+            <button @click="viewDoctorDetails(doctor)" class="btn-view-small">View Details</button>
+            <button @click="checkAvailability(doctor)" class="btn-check-small">Check Availability</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-else-if="searchQuery && !isSearching" class="no-results">
+        <p>No doctors found for "{{ searchQuery }}"</p>
+      </div>
+    </div>
+
     <!-- Upcoming Appointments Section -->
     <div class="section-card">
       <h2 class="section-title">Upcoming Appointments</h2>
@@ -37,9 +75,10 @@
           <tr>
             <th>Sr No.</th>
             <th>Doctor Name</th>
-            <th>Deptt</th>
+            <th>Dept</th>
             <th>Date</th>
             <th>Time</th>
+            <th>Status</th>
             <th>Actions</th>
           </tr>
         </thead>
@@ -51,7 +90,43 @@
             <td>{{ appt.date }}</td>
             <td>{{ appt.time }}</td>
             <td>
+              <span class="status-badge" :class="getStatusClass(appt.status)">{{ appt.status }}</span>
+            </td>
+            <td>
               <button @click="cancelAppointment(appt.id)" class="btn-cancel">cancel</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Past Appointments Section -->
+    <div class="section-card">
+      <h2 class="section-title">Past Appointments</h2>
+
+      <table class="appointment-table">
+        <thead>
+          <tr>
+            <th>Sr No.</th>
+            <th>Doctor Name</th>
+            <th>Dept</th>
+            <th>Date</th>
+            <th>Time</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr v-if="pastAppointments.length === 0">
+            <td colspan="6" class="text-center">No past appointments</td>
+          </tr>
+          <tr v-for="(appt, index) in pastAppointments" :key="appt.id">
+            <td>{{ index + 1 }}.</td>
+            <td>{{ appt.doctorName }}</td>
+            <td>{{ appt.department }}</td>
+            <td>{{ appt.date }}</td>
+            <td>{{ appt.time }}</td>
+            <td>
+              <span class="status-badge" :class="getStatusClass(appt.status)">{{ appt.status }}</span>
             </td>
           </tr>
         </tbody>
@@ -62,7 +137,7 @@
     <div v-if="showHistoryModal" class="modal-overlay" @click="closeHistoryModal">
       <div class="modal-content-history" @click.stop>
         <div class="history-header">
-          <h3 class="modal-title">Patient History</h3>
+          <h3 class="modal-title">appointment details</h3>
           <button @click="closeHistoryModal" class="btn-back">back</button>
         </div>
         
@@ -258,6 +333,74 @@
       </div>
     </div>
 
+    <!-- Edit Profile Modal -->
+    <div v-if="showEditProfileModal" class="modal-overlay" @click="closeEditProfileModal">
+      <div class="modal-content-edit-profile" @click.stop>
+        <div class="edit-profile-header">
+          <h3 class="modal-title">Edit Profile</h3>
+          <button @click="closeEditProfileModal" class="btn-close-modal">×</button>
+        </div>
+        
+        <form @submit.prevent="saveProfile" class="edit-profile-form">
+          <div class="form-row">
+            <div class="form-group">
+              <label>First Name</label>
+              <input type="text" v-model="editProfileForm.firstName" class="form-control" required />
+            </div>
+            <div class="form-group">
+              <label>Last Name</label>
+              <input type="text" v-model="editProfileForm.lastName" class="form-control" required />
+            </div>
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label>Age</label>
+              <input type="number" v-model="editProfileForm.age" class="form-control" min="1" max="120" />
+            </div>
+            <div class="form-group">
+              <label>Gender</label>
+              <select v-model="editProfileForm.gender" class="form-control">
+                <option value="">Select Gender</option>
+                <option value="Male">Male</option>
+                <option value="Female">Female</option>
+                <option value="Rather not disclosed">Rather not disclosed</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label>Address</label>
+            <input type="text" v-model="editProfileForm.address" class="form-control" placeholder="City, Country" />
+          </div>
+
+          <div class="form-group">
+            <label>Mobile Number</label>
+            <input type="tel" v-model="editProfileForm.mobileNumber" class="form-control" />
+          </div>
+
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" v-model="editProfileForm.email" class="form-control" disabled />
+            <small class="form-text-disabled">Email cannot be changed</small>
+          </div>
+
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" value="********" class="form-control" disabled />
+            <small class="form-text-disabled">Password cannot be changed</small>
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" @click="closeEditProfileModal" class="btn-cancel-modal">Cancel</button>
+            <button type="submit" class="btn-save-profile" :disabled="editProfileLoading">
+              {{ editProfileLoading ? 'Saving...' : 'Save' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
   </div>
 </template>
 
@@ -271,12 +414,12 @@ export default {
     return {
       patientName: '',
       patientNameLoading: true,
-      departments: [
-        { id: 1, name: 'Cardiology', key: 'cardiology' },
-        { id: 2, name: 'Oncology', key: 'oncology' },
-        { id: 3, name: 'General', key: 'general' },
-      ],
+      departments: [],
       upcomingAppointments: [],
+      searchQuery: '',
+      searchResults: [],
+      isSearching: false,
+      pastAppointments: [],
       loading: false,
       error: null,
       showHistoryModal: false,
@@ -313,6 +456,19 @@ export default {
         experience: '',
         description: ''
       },
+      // Edit Profile Modal state
+      showEditProfileModal: false,
+      editProfileForm: {
+        firstName: '',
+        lastName: '',
+        age: '',
+        gender: '',
+        address: '',
+        mobileNumber: '',
+        email: '',
+        password: ''
+      },
+      editProfileLoading: false
     };
   },
   mounted() {
@@ -321,6 +477,7 @@ export default {
       this.$router.push('/login');
     }
     this.fetchPatientData();
+    this.fetchDepartments();
     this.fetchUpcomingAppointments();
   },
   computed: {
@@ -344,6 +501,22 @@ export default {
     }
   },
   methods: {
+    async fetchDepartments() {
+      try {
+        console.log('Fetching departments...');
+        const response = await api.get('/patient/departments');
+        this.departments = response.data?.departments || [];
+        console.log('Departments loaded:', this.departments);
+      } catch (error) {
+        console.error('Error fetching departments:', error);
+        // Fallback to default departments if API fails
+        this.departments = [
+          { id: 1, name: 'Cardiology', key: 'cardiology' },
+          { id: 2, name: 'Oncology', key: 'oncology' },
+          { id: 3, name: 'General', key: 'general' },
+        ];
+      }
+    },
     async fetchPatientData() {
       this.patientNameLoading = true;
       try {
@@ -489,7 +662,7 @@ export default {
 
       const key = dept.key || (dept.name || '').toLowerCase();
       const config = departmentConfigs[key] || {
-        description: 'Information about this department will be available soon.'
+        description: `The ${dept.name} Department provides specialized medical care and treatment. Our experienced doctors are dedicated to providing the best possible care for our patients.`
       };
 
       this.selectedDepartment = {
@@ -628,28 +801,126 @@ export default {
       this.closeDoctorDetailsModal();
       this.checkAvailability(doc);
     },
-    cancelAppointment(apptId) {
+    async searchDoctors() {
+      if (!this.searchQuery.trim()) {
+        return;
+      }
+
+      this.isSearching = true;
+      try {
+        const response = await api.get(`/patient/search/doctors?q=${encodeURIComponent(this.searchQuery)}`);
+        this.searchResults = response.data?.doctors || [];
+        console.log('Search results:', this.searchResults);
+      } catch (error) {
+        console.error('Error searching doctors:', error);
+        alert(error.response?.data?.error || 'Error searching doctors');
+      } finally {
+        this.isSearching = false;
+      }
+    },
+    clearSearch() {
+      this.searchQuery = '';
+      this.searchResults = [];
+    },
+    async cancelAppointment(apptId) {
       console.log('Cancelling appointment:', apptId);
-      if (confirm('Are you sure you want to cancel this appointment?')) {
-        // In a real app, you would call an API here
-        // await api.post(`/patient/appointments/${apptId}/cancel`);
+      if (!confirm('Are you sure you want to cancel this appointment?')) {
+        return;
+      }
+
+      try {
+        // Call the backend API to cancel the appointment
+        await api.post(`/patient/appointments/${apptId}/cancel`);
+        
         alert('Appointment cancelled successfully!');
-        // Remove from list
-        this.upcomingAppointments = this.upcomingAppointments.filter(a => a.id !== apptId);
+        
+        // Refresh the appointments list to reflect the change
+        await this.fetchUpcomingAppointments();
+      } catch (error) {
+        console.error('Error cancelling appointment:', error);
+        const errorMessage = error.response?.data?.error || 'Failed to cancel appointment';
+        alert(errorMessage);
+      }
+    },
+    getStatusClass(status) {
+      const statusLower = (status || '').toLowerCase();
+      if (statusLower === 'completed') return 'status-completed';
+      if (statusLower === 'cancelled') return 'status-cancelled';
+      if (statusLower === 'booked') return 'status-booked';
+      return 'status-default';
+    },
+    openEditProfileModal() {
+      this.showEditProfileModal = true;
+      // Fetch current patient data
+      this.loadPatientProfile();
+    },
+    closeEditProfileModal() {
+      this.showEditProfileModal = false;
+    },
+    async loadPatientProfile() {
+      try {
+        const response = await api.get('/patient/dashboard');
+        const patient = response.data?.patient || {};
+        
+        // Parse name (could be "first_last" format)
+        const fullName = patient.name || '';
+        const nameParts = fullName.replace(/_/g, ' ').split(' ');
+        this.editProfileForm.firstName = nameParts[0] || '';
+        this.editProfileForm.lastName = nameParts.slice(1).join(' ') || '';
+        this.editProfileForm.age = patient.age || '';
+        this.editProfileForm.gender = patient.gender || '';
+        this.editProfileForm.address = patient.contact_info || '';
+        this.editProfileForm.mobileNumber = patient.contact_info || '';
+        this.editProfileForm.email = patient.email || '';
+      } catch (error) {
+        console.error('Error loading patient profile:', error);
+        alert('Error loading profile data');
+      }
+    },
+    async saveProfile() {
+      this.editProfileLoading = true;
+      try {
+        // Get patient ID from dashboard
+        const dashboardResponse = await api.get('/patient/dashboard');
+        const patientId = dashboardResponse.data?.patient?.id;
+        
+        if (!patientId) {
+          throw new Error('Patient ID not found');
+        }
+
+        // Prepare update data
+        const updateData = {
+          name: `${this.editProfileForm.firstName}_${this.editProfileForm.lastName}`.toLowerCase(),
+          age: this.editProfileForm.age ? parseInt(this.editProfileForm.age) : null,
+          gender: this.editProfileForm.gender || null,
+          contact_info: this.editProfileForm.mobileNumber || this.editProfileForm.address || null
+        };
+
+        // Call backend API to update profile
+        await api.patch('/patient/profile', updateData);
+        
+        alert('Profile updated successfully!');
+        this.closeEditProfileModal();
+        // Refresh patient data
+        this.fetchPatientData();
+      } catch (error) {
+        console.error('Error saving profile:', error);
+        alert(error.response?.data?.error || 'Error updating profile');
+      } finally {
+        this.editProfileLoading = false;
       }
     },
     async fetchUpcomingAppointments() {
       try {
-        console.log('Fetching upcoming appointments...');
+        console.log('Fetching appointments...');
         const response = await api.get('/patient/history');
         const history = response.data?.medical_history || [];
         
-        // Filter for 'Booked' status (assuming these are upcoming)
-        // You might also want to filter by date if 'Booked' includes past ones, 
-        // but usually 'Booked' implies future/active.
-        const booked = history.filter(item => item.status === 'Booked');
+        // Separate appointments into upcoming and past
+        const upcoming = [];
+        const past = [];
         
-        this.upcomingAppointments = booked.map(item => {
+        history.forEach(item => {
           // Format date: YYYY-MM-DD -> DD/MM/YYYY
           const dateObj = new Date(item.date);
           const dateStr = dateObj.toLocaleDateString('en-GB'); // DD/MM/YYYY
@@ -663,17 +934,30 @@ export default {
             timeStr = '04:00 - 09:00 pm';
           }
           
-          return {
+          const appointment = {
             id: item.appointment_id,
             doctorName: item.doctor ? `Dr. ${item.doctor}` : 'Unknown Doctor',
             department: item.doctor_specialization || 'General',
             date: dateStr,
-            time: timeStr
+            time: timeStr,
+            status: item.status || 'Booked'
           };
+          
+          // Separate based on status
+          if (item.status === 'Cancelled' || item.status === 'Completed') {
+            past.push(appointment);
+          } else {
+            upcoming.push(appointment);
+          }
         });
-        console.log('Upcoming appointments loaded:', this.upcomingAppointments);
+        
+        this.upcomingAppointments = upcoming;
+        this.pastAppointments = past;
+        
+        console.log('Upcoming appointments loaded:', this.upcomingAppointments.length);
+        console.log('Past appointments loaded:', this.pastAppointments.length);
       } catch (error) {
-        console.error("Error fetching upcoming appointments:", error);
+        console.error("Error fetching appointments:", error);
       }
     },
     async exportTreatments() {
@@ -762,6 +1046,22 @@ export default {
 
 .history-btn:hover {
   background-color: #0056b3;
+}
+
+.edit-profile-btn {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.edit-profile-btn:hover {
+  background-color: #138496;
 }
 
 .export-btn {
@@ -1396,5 +1696,409 @@ export default {
 
 .btn-go-back:hover {
   background-color: #dbe0e5;
+}
+
+/* Edit Profile Modal */
+.modal-content-edit-profile {
+  background: white;
+  border-radius: 14px;
+  padding: 0;
+  max-width: 700px;
+  width: 90%;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 18px 50px rgba(0,0,0,0.25);
+  display: flex;
+  flex-direction: column;
+}
+
+.edit-profile-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 25px 30px;
+  border-bottom: 2px solid #e9ecef;
+  background: linear-gradient(135deg, #f8f9fa 0%, #ffffff 100%);
+}
+
+.edit-profile-header .modal-title {
+  margin: 0;
+  color: #0aa64a;
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.btn-close-modal {
+  background: #f5f5f5;
+  border: none;
+  font-size: 28px;
+  color: #666;
+  cursor: pointer;
+  padding: 0;
+  width: 36px;
+  height: 36px;
+  line-height: 36px;
+  text-align: center;
+  border-radius: 50%;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-close-modal:hover {
+  background: #e9ecef;
+  color: #333;
+  transform: rotate(90deg);
+}
+
+.edit-profile-form {
+  padding: 30px;
+  overflow-y: auto;
+  flex: 1;
+  background: white;
+}
+
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
+}
+
+.edit-profile-form .form-group {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+.edit-profile-form .form-group:not(.form-row .form-group) {
+  margin-bottom: 20px;
+}
+
+.edit-profile-form label {
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 8px;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+}
+
+.edit-profile-form .form-control {
+  padding: 12px 16px;
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 15px;
+  transition: all 0.3s;
+  background: #f8f9fa;
+  color: #333;
+  font-family: inherit;
+}
+
+.edit-profile-form .form-control:focus {
+  outline: none;
+  border-color: #0aa64a;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(10, 166, 74, 0.1);
+}
+
+.edit-profile-form .form-control:disabled {
+  background-color: #f5f5f5;
+  color: #999;
+  cursor: not-allowed;
+  border-color: #e0e0e0;
+}
+
+.edit-profile-form select.form-control {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 16px center;
+  padding-right: 40px;
+  cursor: pointer;
+}
+
+.form-text-disabled {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #999;
+  font-style: italic;
+  padding-left: 4px;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 25px;
+  border-top: 2px solid #e9ecef;
+  background: #f8f9fa;
+  padding: 20px 30px;
+  margin: 0 -30px -30px -30px;
+}
+
+.btn-cancel-modal {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 12px 28px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 2px 8px rgba(108, 117, 125, 0.2);
+}
+
+.btn-cancel-modal:hover {
+  background-color: #5a6268;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(108, 117, 125, 0.3);
+}
+
+.btn-save-profile {
+  background: linear-gradient(135deg, #0aa64a 0%, #088f3f 100%);
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(10, 166, 74, 0.3);
+  letter-spacing: 0.3px;
+}
+
+.btn-save-profile:hover:not(:disabled) {
+  background: linear-gradient(135deg, #088f3f 0%, #0aa64a 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(10, 166, 74, 0.4);
+}
+
+.btn-save-profile:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  text-transform: capitalize;
+  display: inline-block;
+  letter-spacing: 0.3px;
+}
+
+.status-booked {
+  background-color: #007bff;
+  color: white;
+  box-shadow: 0 2px 4px rgba(0, 123, 255, 0.2);
+}
+
+.status-completed {
+  background-color: #28a745;
+  color: white;
+  box-shadow: 0 2px 4px rgba(40, 167, 69, 0.2);
+}
+
+.status-cancelled {
+  background-color: #dc3545;
+  color: white;
+  box-shadow: 0 2px 4px rgba(220, 53, 69, 0.2);
+}
+
+.status-default {
+  background-color: #6c757d;
+  color: white;
+  box-shadow: 0 2px 4px rgba(108, 117, 125, 0.2);
+}
+
+@media (max-width: 768px) {
+  .form-row {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+  
+  .modal-content-edit-profile {
+    width: 95%;
+    max-height: 95vh;
+  }
+  
+  .edit-profile-form {
+    padding: 20px;
+  }
+  
+  .edit-profile-header {
+    padding: 20px;
+  }
+  
+  .modal-actions {
+    padding: 15px 20px;
+    margin: 0 -20px -20px -20px;
+    flex-direction: column;
+  }
+  
+  .btn-cancel-modal,
+  .btn-save-profile {
+    width: 100%;
+  }
+}
+
+.text-center {
+  text-align: center;
+}
+
+/* Search Doctors Section */
+.search-container {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 15px;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+}
+
+.btn-search {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-search:hover:not(:disabled) {
+  background-color: #0056b3;
+}
+
+.btn-search:disabled {
+  background-color: #ccc;
+  cursor: not-allowed;
+}
+
+.btn-clear {
+  background-color: #6c757d;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.btn-clear:hover {
+  background-color: #5a6268;
+}
+
+.search-results {
+  margin-top: 20px;
+}
+
+.results-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 15px;
+}
+
+.doctor-result-card {
+  background: white;
+  border: 1px solid #e0e0e0;
+  padding: 16px 20px;
+  border-radius: 8px;
+  margin-bottom: 12px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  transition: box-shadow 0.2s;
+}
+
+.doctor-result-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+.doctor-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.doctor-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: #333;
+}
+
+.doctor-spec {
+  font-size: 14px;
+  color: #666;
+}
+
+.doctor-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.btn-view-small,
+.btn-check-small {
+  padding: 8px 16px;
+  border-radius: 6px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-view-small {
+  background-color: #007bff;
+  color: white;
+}
+
+.btn-view-small:hover {
+  background-color: #0056b3;
+}
+
+.btn-check-small {
+  background-color: #28a745;
+  color: white;
+}
+
+.btn-check-small:hover {
+  background-color: #218838;
+}
+
+.no-results {
+  text-align: center;
+  padding: 30px;
+  color: #999;
+  font-style: italic;
+}
+
+.no-results p {
+  margin: 0;
+  font-size: 16px;
 }
 </style>

@@ -438,10 +438,35 @@ def update_appointment(appt_id):
         return jsonify({'error': str(e)}), 500
 
 
+def _parse_treatment_notes(notes):
+    """Helper to safely parse treatment.notes JSON payload."""
+    default_payload = {
+        'visitType': '',
+        'testDone': '',
+        'medicines': [],
+        'notes': ''
+    }
+
+    if not notes:
+        return default_payload
+
+    try:
+        payload = json.loads(notes)
+        if isinstance(payload, dict):
+            default_payload.update({
+                key: payload.get(key, default_payload[key])
+                for key in default_payload.keys()
+            })
+    except (ValueError, TypeError):
+        pass
+
+    return default_payload
+
+
 @admin_bp.route('/appointments/<int:appt_id>/detail', methods=['GET'])
 @jwt_required()
 def get_appointment_detail(appt_id):
-    """Get single appointment with patient and doctor details."""
+    """Get single appointment with patient, doctor, and treatment details."""
     claims = get_jwt()
     if not check_admin_role(claims):
         return jsonify({'error': 'Unauthorized: Admin only'}), 403
@@ -472,8 +497,21 @@ def get_appointment_detail(appt_id):
             'time': appointment.time.isoformat() if appointment.time else None,
             'reason': appointment.reason if hasattr(appointment, 'reason') else 'N/A',
             'status': appointment.status,
-            'notes': appointment.notes if hasattr(appointment, 'notes') else 'N/A'
+            'notes': appointment.notes if hasattr(appointment, 'notes') else 'N/A',
+            'treatment': None
         }
+
+        # Include treatment details if available
+        if appointment.treatment:
+            notes_payload = _parse_treatment_notes(appointment.treatment.notes)
+            appt_detail['treatment'] = {
+                'diagnosis': appointment.treatment.diagnosis or '',
+                'prescription': appointment.treatment.prescription or '',
+                'visitType': notes_payload.get('visitType', ''),
+                'testDone': notes_payload.get('testDone', ''),
+                'medicines': notes_payload.get('medicines', []),
+                'notes': notes_payload.get('notes', '')
+            }
 
         return jsonify({'appointment': appt_detail}), 200
     except Exception as e:

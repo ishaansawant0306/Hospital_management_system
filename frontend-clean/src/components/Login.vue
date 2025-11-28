@@ -3,12 +3,6 @@
     <nav class="navbar navbar-expand-lg bg-white shadow-sm px-4 py-3">
       <div class="container-fluid navbar-inner">
         <a class="navbar-brand site-logo" href="#">TryggHelse</a>
-
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item login-link-item">
-            <a class="nav-link login-link" href="#">Login</a>
-          </li>
-        </ul>
       </div>
     </nav>
     <!-- Login Page -->
@@ -18,13 +12,14 @@
           <!-- Left Panel -->
           <div class="left-panel">
             <div class="left-inner">
-              <h2>Patient Login</h2>
+              <h2>User login</h2>
               <ul class="features-list">
-                <li>Anytime, Anywhere, Any Device</li>
-                <li>Go Paperless</li>
-                <li>Secure Backup</li>
-                <li>Multi Location Support</li>
-                <li>Quick Insight On Key Performance</li>
+                <li>Centres of Excellence</li>
+                <li>Centre for Cardiac Care</li>
+                <li>Centre for Neuro Care</li>
+                <li>Centre for Orthopedic Care</li>
+                <li>Health checkup</li>
+                <li>quick appointments</li>
               </ul>
             </div>
           </div>
@@ -47,10 +42,10 @@
                   </div>
                 </div>
 
-                <button type="submit" class="btn login-btn w-100" :disabled="loading">{{ loading ? 'Logging in...' : 'Login' }}</button>
+                <button type="submit" class="btn login-btn w-100" :disabled="loading">{{ loading ? 'Logging in...' : 'Submit' }}</button>
 
                 <div class="register-link-container">
-                  <span class="register-text">Don't have an account? </span>
+                  <span class="register-text">new patient? </span>
                   <router-link to="/register" class="register-link">register</router-link>
                 </div>
 
@@ -193,7 +188,8 @@ export default {
   align-items: center;
   justify-content: center;
   background-color: #f0f2f5;
-  padding: 3rem 1rem;
+  padding: 1rem 1rem;
+  margin-top: -60px;
 }
 
 .login-card {
@@ -208,7 +204,7 @@ export default {
 
 .left-panel { flex: 0 0 45%; background-color: #0aa64a; color: #fff; display:flex; align-items:center; justify-content:center; }
 .left-inner { padding: 40px; }
-.left-inner h2 { font-size: 30px; margin-bottom: 18px; font-weight: 700; }
+.left-inner h2 { font-size: 34px; margin-bottom: 20px; font-weight: 700; text-align: center; }
 
 .features-list { list-style: none; padding: 0; }
 .features-list li { margin-bottom: 14px; font-size: 15px; display:flex; align-items:center; }
@@ -231,7 +227,7 @@ export default {
   padding: 14px 0;
   border-radius: 26px;
   font-weight: 800;
-  font-size: 16px;
+  font-size: 20px;
   box-shadow: 0 8px 26px rgba(245,130,32,0.28);
   width: 72% !important;
   display: block;
@@ -243,11 +239,12 @@ export default {
 .register-link-container {
   text-align: center;
   margin-top: 20px;
-  font-size: 14px;
+  font-size: 18px;
 }
 
 .register-text {
   color: #666;
+  font-size: 18px;
 }
 
 .register-link {
@@ -255,6 +252,7 @@ export default {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+  font-size: 18px;
 }
 
 .register-link:hover {

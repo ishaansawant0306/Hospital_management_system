@@ -76,6 +76,46 @@ def get_patient_dashboard():
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
+@patient_bp.route('/departments', methods=['GET'])
+@jwt_required()
+def get_departments():
+    """
+    Get all unique departments/specializations from doctors in the system.
+    Returns only specializations that have at least one non-blacklisted doctor.
+    """
+    try:
+        claims = get_jwt()
+        current_role = claims.get('role')
+
+        if current_role != 'Patient':
+            return jsonify({'error': 'Unauthorized: Patient access required'}), 403
+
+        # Get all unique specializations from non-blacklisted doctors
+        specializations = db.session.query(Doctor.specialization).distinct()\
+            .join(User, Doctor.user_id == User.id)\
+            .filter(User.is_blacklisted == False)\
+            .all()
+        
+        departments = []
+        for idx, (spec,) in enumerate(specializations, start=1):
+            if spec:  # Only include non-null specializations
+                departments.append({
+                    'id': idx,
+                    'name': spec.title(),  # Capitalize first letter
+                    'key': spec.lower()
+                })
+        
+        # Sort departments alphabetically
+        departments.sort(key=lambda x: x['name'])
+        
+        return jsonify({'departments': departments}), 200
+    except Exception as e:
+        print(f"Error in get_departments: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
 from app_config import cache
 
 @patient_bp.route('/departments/<department_name>/doctors', methods=['GET'])
@@ -432,4 +472,174 @@ def export_treatments():
         }), 202
     except Exception as e:
         print(f"Error in export_treatments: {str(e)}")
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
+@patient_bp.route('/search/doctors', methods=['GET'])
+@jwt_required()
+def search_doctors():
+    """
+    Search doctors by name or specialization.
+    Accessible to patients for finding doctors.
+    """
+    try:
+        claims = get_jwt()
+        current_role = claims.get('role')
+
+        if current_role != 'Patient':
+            return jsonify({'error': 'Unauthorized: Patient access required'}), 403
+
+        query_str = request.args.get('q', '').strip()
+        
+        print(f"[PATIENT SEARCH] Query: '{query_str}'")
+
+        if not query_str:
+            return jsonify({'doctors': []}), 200
+
+        # Search in doctor name (via user.username) or specialization
+        # Handle both underscore and space separated names
+        query_with_underscore = query_str.replace(' ', '_')
+        
+        doctors = Doctor.query.filter(
+            (Doctor.specialization.ilike(f'%{query_str}%')) |
+            (Doctor.user.has(User.username.ilike(f'%{query_str}%'))) |
+            (Doctor.user.has(User.username.ilike(f'%{query_with_underscore}%')))
+        ).all()
+        
+        print(f"[PATIENT SEARCH] Found {len(doctors)} doctors before filtering")
+
+        # Filter out blacklisted doctors
+        doctor_list = []
+        for doc in doctors:
+            if doc.user and not doc.user.is_blacklisted:
+                # Format name with Dr. prefix
+                username = doc.user.username.replace('_', ' ').title()
+                if username.lower().startswith('dr.'):
+                    username = username[3:].strip()
+                doctor_name = f"Dr. {username}"
+                
+                print(f"[PATIENT SEARCH] Adding: {doctor_name} - {doc.specialization}")
+                
+                doctor_list.append({
+                    'id': doc.id,
+                    'name': doctor_name,
+                    'specialization': doc.specialization,
+                    'doctor_id': doc.doctor_id
+                })
+        
+        print(f"[PATIENT SEARCH] Returning {len(doctor_list)} doctors after filtering")
+
+        return jsonify({'doctors': doctor_list}), 200
+    except Exception as e:
+        print(f"Error in search_doctors: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
+@patient_bp.route('/appointments/<int:appointment_id>/cancel', methods=['POST'])
+@jwt_required()
+def cancel_appointment(appointment_id):
+    """
+    Cancel a patient's own appointment.
+    Only the patient who owns the appointment can cancel it.
+    """
+    try:
+        claims = get_jwt()
+        current_user_id = get_jwt_identity()
+        current_role = claims.get('role')
+
+        if current_role != 'Patient':
+            return jsonify({'error': 'Unauthorized: Patient access required'}), 403
+
+        # Get the patient record for the current user
+        patient = Patient.query.filter_by(user_id=current_user_id).first()
+        if not patient:
+            return jsonify({'error': 'Patient profile not found'}), 404
+
+        # Get the appointment and verify ownership
+        appointment = Appointment.query.filter_by(
+            id=appointment_id,
+            patient_id=patient.id
+        ).first()
+
+        if not appointment:
+            return jsonify({'error': 'Appointment not found or unauthorized'}), 404
+
+        # Check if already cancelled or completed
+        if appointment.status == 'Cancelled':
+            return jsonify({'error': 'Appointment is already cancelled'}), 400
+        
+        if appointment.status == 'Completed':
+            return jsonify({'error': 'Cannot cancel a completed appointment'}), 400
+
+        # Update status to Cancelled
+        appointment.status = 'Cancelled'
+        db.session.commit()
+
+        return jsonify({
+            'msg': 'Appointment cancelled successfully',
+            'appointment': {
+                'id': appointment.id,
+                'status': 'Cancelled'
+            }
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error cancelling appointment: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
+@patient_bp.route('/profile', methods=['PATCH'])
+@jwt_required()
+def update_patient_profile():
+    """
+    Update the logged-in patient's own profile.
+    Patients can update: name, age, gender, contact_info
+    Email and password cannot be changed through this endpoint.
+    """
+    try:
+        claims = get_jwt()
+        current_user_id = get_jwt_identity()
+        current_role = claims.get('role')
+
+        if current_role != 'Patient':
+            return jsonify({'error': 'Unauthorized: Patient access required'}), 403
+
+        # Get the patient record for the current user
+        patient = Patient.query.filter_by(user_id=current_user_id).first()
+        if not patient:
+            return jsonify({'error': 'Patient profile not found'}), 404
+
+        data = request.get_json()
+
+        # Update patient fields
+        if 'name' in data:
+            patient.user.username = data['name']
+        if 'age' in data:
+            patient.age = data['age']
+        if 'gender' in data:
+            patient.gender = data['gender']
+        if 'contact_info' in data:
+            patient.contact_info = data['contact_info']
+
+        db.session.commit()
+
+        return jsonify({
+            'msg': 'Profile updated successfully',
+            'patient': {
+                'id': patient.id,
+                'name': patient.user.username,
+                'age': patient.age,
+                'gender': patient.gender,
+                'contact_info': patient.contact_info
+            }
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error updating patient profile: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f'Server error: {str(e)}'}), 500

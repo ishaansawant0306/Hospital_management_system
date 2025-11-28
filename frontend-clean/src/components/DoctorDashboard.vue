@@ -21,7 +21,7 @@
           <tr>
             <th>Sr No.</th>
             <th>Patient Name</th>
-            <th>Patient History</th>
+            <th>Treatment history</th>
             <th>Appointment Details</th>
             <th>Actions</th>
           </tr>
@@ -38,7 +38,7 @@
             </td>
             <td>
               <button @click="markCompleted(appt.id)" class="btn-complete">mark as complete</button>
-              <button @click="markCancelled(appt.id)" class="btn-cancel">cancel</button>
+              <button @click="markCancelled(appt.id)" class="btn-cancel">cancel appointment</button>
             </td>
           </tr>
         </tbody>
@@ -123,7 +123,7 @@
 
           <!-- Note -->
           <div class="note-text">
-            Students can add/remove meds based on what they want in patient's history
+            Doctors can add/remove meds based on what they want in patient's history
           </div>
 
           <!-- Actions -->
@@ -138,7 +138,7 @@
     <div v-if="showHistoryModal" class="modal-overlay" @click="closeHistoryModal">
       <div class="modal-content-history" @click.stop>
         <div class="history-header">
-          <h3 class="modal-title">Patient History</h3>
+          <h3 class="modal-title">appointment details</h3>
           <button @click="closeHistoryModal" class="btn-back">back</button>
         </div>
         
@@ -306,7 +306,12 @@ export default {
       try {
         const response = await api.get('/doctor/dashboard');
         const data = response.data || {};
-        this.doctorName = data.doctor?.name || this.doctorName;
+        let name = data.doctor?.name || this.doctorName;
+        // Remove "Dr." prefix if it exists to avoid "Dr. Dr." duplication
+        if (name && name.startsWith('Dr. ')) {
+          name = name.substring(4);
+        }
+        this.doctorName = name;
 
         this.appointments = (data.appointments_next_7_days || []).map(appt => ({
           id: appt.id,

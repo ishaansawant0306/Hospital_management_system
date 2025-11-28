@@ -105,22 +105,40 @@ export default {
       immediate: true,
       handler(newVal) {
         if (newVal) {
+          console.log('Fetching history for patient_id:', newVal);
           this.fetchHistory(newVal);
+        } else {
+          console.warn('patientId is null or undefined');
+          this.error = 'Patient ID is missing';
+          this.loading = false;
         }
       }
     }
   },
   methods: {
     async fetchHistory(patientId) {
+      // Validate patientId
+      if (!patientId || patientId === 'null' || patientId === 'undefined') {
+        this.error = 'Invalid patient ID';
+        this.loading = false;
+        return;
+      }
+      
       this.loading = true;
       this.error = null;
       try {
-        const response = await api.get(`/api/admin/patient/history/${patientId}`);
+        const url = `/api/admin/patient/history/${patientId}`;
+        console.log('Fetching patient history from:', url);
+        const response = await api.get(url);
+        console.log('Patient history response:', response.data);
         this.patient = response.data.patient;
-        this.history = response.data.medical_history;
+        this.history = response.data.medical_history || [];
       } catch (err) {
         console.error('Error fetching history:', err);
-        this.error = 'Failed to load patient history: ' + (err.response?.data?.error || err.message);
+        console.error('Error response:', err.response);
+        const errorMessage = err.response?.data?.error || err.message || 'Unknown error';
+        const statusCode = err.response?.status;
+        this.error = `Failed to load patient history: ${errorMessage}${statusCode ? ` (Status: ${statusCode})` : ''}`;
       } finally {
         this.loading = false;
       }

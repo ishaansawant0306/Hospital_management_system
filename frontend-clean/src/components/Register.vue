@@ -3,12 +3,6 @@
     <nav class="navbar navbar-expand-lg bg-white shadow-sm px-4 py-3">
       <div class="container-fluid navbar-inner">
         <a class="navbar-brand site-logo" href="#">TryggHelse</a>
-
-        <ul class="navbar-nav ms-auto">
-          <li class="nav-item login-link-item">
-            <a class="nav-link login-link" href="#">Login</a>
-          </li>
-        </ul>
       </div>
     </nav>
     <!-- Register Page -->
@@ -18,13 +12,14 @@
           <!-- Left Panel -->
           <div class="left-panel">
             <div class="left-inner">
-              <h2>Patient Registration</h2>
+              <h2>User login</h2>
               <ul class="features-list">
-                <li>Anytime, Anywhere, Any Device</li>
-                <li>Go Paperless</li>
-                <li>Secure Backup</li>
-                <li>Multi Location Support</li>
-                <li>Quick Insight On Key Performance</li>
+                <li>Centres of Excellence</li>
+                <li>Centre for Cardiac Care</li>
+                <li>Centre for Neuro Care</li>
+                <li>Centre for Orthopedic Care</li>
+                <li>Health checkup</li>
+                <li>quick appointments</li>
               </ul>
             </div>
           </div>
@@ -50,14 +45,29 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label">Where are you from?</label>
+                  <label class="form-label">Address</label>
                   <input type="text" v-model="location" class="form-control" placeholder="City, Country" />
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Gender</label>
+                  <select v-model="gender" class="form-control">
+                    <option value="">Select Gender</option>
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                    <option value="Rather not disclosed">Rather not disclosed</option>
+                  </select>
                 </div>
 
                 <div class="form-group">
                   <label class="form-label">Email or User Id</label>
                   <input type="email" v-model="email" class="form-control" placeholder="Email or User Id" required />
                   <small class="form-text">Email will be used as username</small>
+                </div>
+
+                <div class="form-group">
+                  <label class="form-label">Mobile Number</label>
+                  <input type="tel" v-model="mobileNumber" class="form-control" placeholder="Mobile Number" />
                 </div>
 
                 <div class="form-group">
@@ -95,6 +105,8 @@ export default {
       age: '',
       location: '',
       email: '',
+      mobileNumber: '',
+      gender: '',
       password: '',
       showPassword: false,
       loading: false,
@@ -125,7 +137,8 @@ export default {
           password: this.password,
           username: username,
           age: this.age ? parseInt(this.age) : null,
-          contact_info: this.location || null
+          contact_info: this.mobileNumber || this.location || null,
+          gender: this.gender || null
         };
 
         // Call the backend /register endpoint
@@ -207,7 +220,8 @@ export default {
   align-items: center;
   justify-content: center;
   background-color: #f0f2f5;
-  padding: 3rem 1rem;
+  padding: 1rem 1rem;
+  margin-top: -60px;
 }
 
 .register-card {
@@ -222,7 +236,7 @@ export default {
 
 .left-panel { flex: 0 0 45%; background-color: #0aa64a; color: #fff; display:flex; align-items:center; justify-content:center; }
 .left-inner { padding: 40px; }
-.left-inner h2 { font-size: 30px; margin-bottom: 18px; font-weight: 700; }
+.left-inner h2 { font-size: 34px; margin-bottom: 20px; font-weight: 700; text-align: center; }
 
 .features-list { list-style: none; padding: 0; }
 .features-list li { margin-bottom: 14px; font-size: 15px; display:flex; align-items:center; }
@@ -235,6 +249,7 @@ export default {
 .form-label { font-weight:600; color:#666; display: block; margin-bottom: 4px; }
 .form-control { width:100%; padding:12px 14px; border-radius:8px; border:1px solid #e8e8e8; margin-top:8px; background:#f5f6f7; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03); }
 .form-control:focus { outline: none; border-color: #0aa64a; }
+select.form-control { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%23333' d='M6 9L1 4h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 36px; cursor: pointer; }
 
 .form-text {
   display: block;
@@ -254,7 +269,7 @@ export default {
   padding: 14px 0;
   border-radius: 26px;
   font-weight: 800;
-  font-size: 16px;
+  font-size: 20px;
   box-shadow: 0 8px 26px rgba(245,130,32,0.28);
   width: 72% !important;
   display: block;
@@ -277,11 +292,12 @@ export default {
 .login-link-container {
   text-align: center;
   margin-top: 20px;
-  font-size: 14px;
+  font-size: 18px;
 }
 
 .login-text {
   color: #666;
+  font-size: 18px;
 }
 
 .login-link-register {
@@ -289,6 +305,7 @@ export default {
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
+  font-size: 18px;
 }
 
 .login-link-register:hover {

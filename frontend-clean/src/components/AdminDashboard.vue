@@ -28,7 +28,7 @@
         <span v-if="isSearching" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span>
         {{ isSearching ? 'Searching...' : 'search' }}
       </button>
-      <button v-if="searchQuery && !isSearching" class="btn btn-sm btn-outline-secondary ms-2" @click="clearSearch">Clear</button>
+      <button v-if="searchQuery && !isSearching" class="btn btn-sm clear-btn-lg btn-outline-secondary ms-2" @click="clearSearch">Clear</button>
     </div>
 
     <!-- No Results Message -->
@@ -40,7 +40,7 @@
     <div class="section-card" v-if="!searchQuery || doctors.length > 0">
       <div class="section-header">
         <h2>Registered Doctors</h2>
-        <button class="btn-create" @click="openCreateDoctorModal">+ create</button>
+        <button class="btn-create create-btn-lg" @click="openCreateDoctorModal">+ create</button>
       </div>
 
       <div v-if="doctors.length === 0" class="empty-state">
@@ -104,18 +104,20 @@
             <th>Patient Name</th>
             <th>Doctor Name</th>
             <th>Department</th>
+            <th>Status</th>
             <th>Patient History</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="upcomingAppointments.length === 0">
-            <td colspan="5" class="text-center">No upcoming appointments</td>
+            <td colspan="6" class="text-center">No upcoming appointments</td>
           </tr>
           <tr v-for="(appt, index) in upcomingAppointments" :key="appt.id">
             <td>{{ index + 1 }}.</td>
             <td>{{ appt.patient }}</td>
             <td>{{ appt.doctor }}</td>
             <td>{{ appt.department || 'N/A' }}</td>
+            <td><span class="status-badge status-booked">{{ appt.status }}</span></td>
             <td><button class="view-btn" @click="openAppointmentDetail(appt)">view</button></td>
           </tr>
         </tbody>
@@ -133,18 +135,24 @@
             <th>Patient Name</th>
             <th>Doctor Name</th>
             <th>Department</th>
+            <th>Status</th>
             <th>Patient History</th>
           </tr>
         </thead>
         <tbody>
           <tr v-if="pastAppointments.length === 0">
-            <td colspan="5" class="text-center">No past appointments</td>
+            <td colspan="6" class="text-center">No past appointments</td>
           </tr>
           <tr v-for="(appt, index) in pastAppointments" :key="appt.id">
             <td>{{ index + 1 }}.</td>
             <td>{{ appt.patient }}</td>
             <td>{{ appt.doctor }}</td>
             <td>{{ appt.department || 'N/A' }}</td>
+            <td>
+              <span :class="['status-badge', appt.status === 'Completed' ? 'status-completed' : 'status-cancelled']">
+                {{ appt.status }}
+              </span>
+            </td>
             <td><button class="view-btn" @click="openAppointmentDetail(appt)">view</button></td>
           </tr>
         </tbody>
@@ -157,9 +165,8 @@
     <EditPatientModal :patient="selectedPatient" @updated="handleEntityUpdated" />
     <DeleteConfirmationModal :entity="selectedEntity" :role="selectedRole" @deleted="fetchDashboardData" />
     <BlacklistModal :entity="selectedEntity" :role="selectedRole" @blacklisted="fetchDashboardData" />
-    <AppointmentDetailModal 
-      :appointment-id="selectedAppointmentId" 
-      :patient-id="selectedPatientId"
+    <TreatmentDetailModal 
+      :appointment-id="selectedAppointmentId"
     />
 
     <!-- Toast Notification -->
@@ -195,7 +202,7 @@
   import DeleteConfirmationModal from './modals/DeleteConfirmationModal.vue';
   import BlacklistModal from './modals/BlacklistModal.vue';
   import CreateDoctorModal from './modals/CreateDoctorModal.vue';
-  import AppointmentDetailModal from './modals/AppointmentDetailModal.vue';
+  import TreatmentDetailModal from './modals/TreatmentDetailModal.vue';
 
   export default {
     name: 'AdminDashboard',
@@ -205,7 +212,7 @@
       DeleteConfirmationModal,
       BlacklistModal,
       CreateDoctorModal,
-      AppointmentDetailModal
+      TreatmentDetailModal
     },
     data() {
       return {
@@ -225,7 +232,6 @@
         selectedEntity: null,
         selectedRole: null,
         selectedAppointmentId: null,
-        selectedPatientId: null,
         searchQuery: '',
         searchType: 'all',
         isSearching: false,
@@ -452,12 +458,20 @@
 
 
       openAppointmentDetail(appointment) {
+        console.log('Opening treatment detail for appointment:', appointment);
+        
+        // Validate that appointment ID exists
+        if (!appointment || !appointment.id) {
+          console.error('Appointment missing ID:', appointment);
+          this.showToast('Error: Appointment ID not found');
+          return;
+        }
+        
         this.selectedAppointmentId = appointment.id;
-        this.selectedPatientId = appointment.patient_id; // Ensure backend sends patient_id
         
         // Wait for DOM update then show modal
         this.$nextTick(() => {
-          const modalEl = document.getElementById('appointmentDetailModal');
+          const modalEl = document.getElementById('treatmentDetailModal');
           if (modalEl) {
             const modal = new bootstrap.Modal(modalEl);
             modal.show();
@@ -767,6 +781,33 @@
 }
 .btn-create:hover {
   background-color: #218838;
+}
+.clear-btn-lg {
+  font-size: 40px;
+}
+
+/* Status Badges */
+.status-badge {
+  padding: 4px 12px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-block;
+}
+
+.status-booked {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.status-completed {
+  background-color: #cce5ff;
+  color: #004085;
+}
+
+.status-cancelled {
+  background-color: #f8d7da;
+  color: #721c24;
 }
 
   </style>
