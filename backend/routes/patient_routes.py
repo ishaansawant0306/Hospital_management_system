@@ -76,8 +76,11 @@ def get_patient_dashboard():
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
+from app_config import cache
+
 @patient_bp.route('/departments/<department_name>/doctors', methods=['GET'])
 @jwt_required()
+@cache.cached(timeout=300, query_string=True)
 def get_doctors_by_department(department_name):
     """
     Get doctors for a specific department/specialization.
@@ -147,6 +150,7 @@ def get_doctors_by_department(department_name):
 
 @patient_bp.route('/doctors/<int:doctor_id>/availability', methods=['GET'])
 @jwt_required()
+@cache.cached(timeout=60, query_string=True) # Cache for 1 minute as availability changes often
 def get_doctor_availability(doctor_id):
     """
     Get a specific doctor's availability for the next 7 days.
@@ -401,3 +405,31 @@ def get_patient_history():
         traceback.print_exc()
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
+
+@patient_bp.route('/export/treatments', methods=['POST'])
+@jwt_required()
+def export_treatments():
+    """
+    Trigger async task to export patient treatments to CSV.
+    """
+    try:
+        claims = get_jwt()
+        current_user_id = get_jwt_identity()
+        current_role = claims.get('role')
+
+        if current_role != 'Patient':
+            return jsonify({'error': 'Unauthorized: Patient access required'}), 403
+
+        # Import here to avoid circular imports if any
+        from tasks import export_patient_treatments
+        
+        # Trigger the Celery task
+        task = export_patient_treatments.delay(current_user_id)
+        
+        return jsonify({
+            'message': 'Export started. You will be notified via email when it is ready.',
+            'task_id': task.id
+        }), 202
+    except Exception as e:
+        print(f"Error in export_treatments: {str(e)}")
+        return jsonify({'error': f'Server error: {str(e)}'}), 500

@@ -10,6 +10,7 @@
 
         <div class="navbar-actions">
           <button @click="openHistoryModal" class="history-btn">History</button>
+          <button @click="exportTreatments" class="export-btn">Export Treatments</button>
           <button @click="logout" class="logout-btn">Logout</button>
         </div>
       </div>
@@ -675,6 +676,18 @@ export default {
         console.error("Error fetching upcoming appointments:", error);
       }
     },
+    async exportTreatments() {
+      if (!confirm('Do you want to export your treatment history to CSV? You will receive an email when it is ready.')) {
+        return;
+      }
+      try {
+        const response = await api.post('/patient/export/treatments');
+        alert(response.data.message);
+      } catch (error) {
+        console.error("Error exporting treatments:", error);
+        alert(error.response?.data?.error || "Failed to start export.");
+      }
+    },
     logout() {
       clearToken();
       this.$router.push('/login');
@@ -749,6 +762,22 @@ export default {
 
 .history-btn:hover {
   background-color: #0056b3;
+}
+
+.export-btn {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 10px 25px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.export-btn:hover {
+  background-color: #218838;
 }
 
 .logout-btn {
