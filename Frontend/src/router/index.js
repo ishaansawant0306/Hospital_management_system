@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router';
-import { getUserRole } from '@/utils/tokenManager';
+import { getUserRole, getToken } from '@/utils/tokenManager';
 
 const routes = [
   {
@@ -26,6 +26,26 @@ const routes = [
     }
   },
   {
+    path: '/doctor/dashboard',
+    name: 'DoctorDashboard',
+    component: () => import('@/components/AdminDashboard.vue'), // Placeholder - reuses AdminDashboard component
+    meta: {
+      title: 'Hospital Management - Doctor Dashboard',
+      requiresAuth: true,
+      requiredRole: 'Doctor'
+    }
+  },
+  {
+    path: '/patient/dashboard',
+    name: 'PatientDashboard',
+    component: () => import('@/components/AdminDashboard.vue'), // Placeholder - reuses AdminDashboard component
+    meta: {
+      title: 'Hospital Management - Patient Dashboard',
+      requiresAuth: true,
+      requiredRole: 'Patient'
+    }
+  },
+  {
     path: '/:pathMatch(.*)*',
     redirect: '/login'
   }
@@ -39,7 +59,7 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   const requiresAuth = to.meta.requiresAuth;
   const requiredRole = to.meta.requiredRole;
-  const token = localStorage.getItem('token');
+  const token = getToken(); // Use tokenManager instead of direct localStorage
   const userRole = getUserRole();
 
   if (to.meta.title) {
@@ -55,16 +75,8 @@ router.beforeEach((to, from, next) => {
       next();
     }
   } else {
-    if (token && to.path === '/login') {
-      const role = getUserRole();
-      if (role === 'Admin') {
-        next('/admin');
-      } else {
-        next('/login');
-      }
-    } else {
-      next();
-    }
+    // Allow access to login page regardless of authentication status
+    next();
   }
 });
 

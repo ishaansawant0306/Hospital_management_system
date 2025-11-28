@@ -1,12 +1,15 @@
 /**
  * Token Manager - Handles JWT token storage and retrieval
  * 
- * This utility manages JWT tokens in localStorage and provides
+ * This utility manages JWT tokens in sessionStorage and provides
  * helper functions to:
  * - Store tokens after login
  * - Retrieve tokens for API requests
  * - Clear tokens on logout
  * - Check if user is authenticated
+ * 
+ * NOTE: Uses sessionStorage instead of localStorage to enable
+ * independent authentication per browser tab.
  */
 
 const TOKEN_KEY = 'access_token';
@@ -19,34 +22,34 @@ const USER_ID_KEY = 'user_id';
  */
 export function saveToken(response) {
   if (response.access_token) {
-    localStorage.setItem(TOKEN_KEY, response.access_token);
-    localStorage.setItem(ROLE_KEY, response.role);
-    localStorage.setItem(USER_ID_KEY, response.user_id);
+    sessionStorage.setItem(TOKEN_KEY, response.access_token);
+    sessionStorage.setItem(ROLE_KEY, response.role);
+    sessionStorage.setItem(USER_ID_KEY, response.user_id);
   }
 }
 
 /**
- * Get JWT token from localStorage
+ * Get JWT token from sessionStorage
  * @returns {string|null} JWT token or null if not found
  */
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY);
 }
 
 /**
- * Get user role from localStorage
+ * Get user role from sessionStorage
  * @returns {string|null} User role or null if not found
  */
 export function getUserRole() {
-  return localStorage.getItem(ROLE_KEY);
+  return sessionStorage.getItem(ROLE_KEY);
 }
 
 /**
- * Get user ID from localStorage
+ * Get user ID from sessionStorage
  * @returns {string|null} User ID or null if not found
  */
 export function getUserId() {
-  return localStorage.getItem(USER_ID_KEY);
+  return sessionStorage.getItem(USER_ID_KEY);
 }
 
 /**
@@ -78,7 +81,7 @@ export function getAuthHeaders() {
  * Clear all stored authentication data (on logout)
  */
 export function clearToken() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(ROLE_KEY);
-  localStorage.removeItem(USER_ID_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(ROLE_KEY);
+  sessionStorage.removeItem(USER_ID_KEY);
 }

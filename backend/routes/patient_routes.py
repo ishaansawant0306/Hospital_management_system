@@ -80,7 +80,7 @@ from app_config import cache
 
 @patient_bp.route('/departments/<department_name>/doctors', methods=['GET'])
 @jwt_required()
-@cache.cached(timeout=300, query_string=True)
+# Cache removed for debugging/real-time updates
 def get_doctors_by_department(department_name):
     """
     Get doctors for a specific department/specialization.
