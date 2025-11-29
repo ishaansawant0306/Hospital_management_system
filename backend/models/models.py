@@ -1,148 +1,164 @@
-"""
-Database Models Module
-
-This module defines all SQLAlchemy database models for the Hospital Management System.
-It includes models for Users, Doctors, Patients, Appointments, Treatments, and Departments.
-
-Models:
-    - User: Base user model with role-based access (Admin, Doctor, Patient)
-    - Doctor: Doctor information linked to User model
-    - Patient: Patient information linked to User model
-    - Appointment: Appointment scheduling between doctors and patients
-    - Treatment: Medical treatment records associated with appointments
-    - Department: Hospital departments
-"""
+# Database models for Hospital Management System
+# Author: Ishaan Sawant
+# This file contains all database table definitions using SQLAlchemy ORM
 
 from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
 
-# Initialize SQLAlchemy database instance
+# Create database instance
 db = SQLAlchemy()
 
 
+# ==================== USER MODEL ====================
 class User(db.Model):
     """
-    User Model - Represents all users in the system (Admin, Doctor, Patient)
-    
-    Attributes:
-        id (int): Primary key, unique identifier for the user
-        username (str): Unique username for login
-        email (str): Unique email address
-        password (str): Hashed password for security
-        role (str): User role ('Admin', 'Doctor', or 'Patient')
-        is_blacklisted (bool): Whether user is blacklisted by admin
+    Main user table - stores login credentials and role info
+    Each user can be either Admin, Doctor, or Patient
     """
-    id = db.Column(db.Integer, primary_key=True)
-    username = db.Column(db.String(80), unique=True, nullable=False)
-    email = db.Column(db.String(120), unique=True, nullable=False)
-    password = db.Column(db.String(200), nullable=False)
-    role = db.Column(db.String(20), nullable=False)  # 'Admin', 'Doctor', 'Patient'
-    is_blacklisted = db.Column(db.Boolean, default=False, nullable=False)
-
-    # Relationships: One User can have one Doctor or Patient profile
-    doctor = db.relationship('Doctor', backref='user', uselist=False)
-    patient = db.relationship('Patient', backref='user', uselist=False)
+    __tablename__ = 'user'
     
+    # Primary fields
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    username = db.Column(db.String(80), unique=True, nullable=False, index=True)
+    email = db.Column(db.String(120), unique=True, nullable=False, index=True)
+    password = db.Column(db.String(200), nullable=False)  # Stores hashed password
+    role = db.Column(db.String(20), nullable=False)  # Values: 'Admin', 'Doctor', 'Patient'
+    is_blacklisted = db.Column(db.Boolean, default=False, nullable=False)
+    
+    # Relationship links - a user has either doctor OR patient profile
+    doctor = db.relationship('Doctor', backref='user', uselist=False, cascade='all, delete-orphan')
+    patient = db.relationship('Patient', backref='user', uselist=False, cascade='all, delete-orphan')
+    
+    def get_role(self):
+        """Returns the role of this user"""
+        return self.role
+    
+    def is_active(self):
+        """Check if user account is active (not blacklisted)"""
+        return not self.is_blacklisted
+    
+    def __repr__(self):
+        return f'<User {self.username} ({self.role})>'
 
 
-
+# ==================== DOCTOR MODEL ====================
 class Doctor(db.Model):
     """
-    Doctor Model - Stores doctor-specific information
-    
-    Attributes:
-        id (int): Primary key, unique identifier for the doctor
-        user_id (int): Foreign key linking to User model
-        doctor_id (str): Unique doctor identification number
-        specialization (str): Medical specialization (e.g., Cardiology, Neurology)
-        availability (str): Doctor's availability schedule
-        address (str): Doctor's address
+    Doctor profile table - extends User with doctor-specific data
+    Linked to User table via user_id foreign key
     """
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    doctor_id = db.Column(db.String(50), unique=True, nullable=False)  # Unique doctor ID
+    __tablename__ = 'doctor'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
+    doctor_id = db.Column(db.String(50), unique=True, nullable=False, index=True)
     specialization = db.Column(db.String(100), nullable=False)
-    availability = db.Column(db.String, nullable=True)
-    address = db.Column(db.String(300), nullable=True)  # Doctor's address
+    availability = db.Column(db.String, nullable=True)  # JSON string of available slots
+    address = db.Column(db.String(300), nullable=True)
+    
+    # One doctor can have many appointments
+    appointments = db.relationship('Appointment', backref='doctor', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def get_full_name(self):
+        """Get doctor's full name from linked user"""
+        return self.user.username if self.user else 'Unknown'
+    
+    def __repr__(self):
+        return f'<Doctor {self.doctor_id} - {self.specialization}>'
 
-    # Relationship: One Doctor can have multiple Appointments
-    appointments = db.relationship('Appointment', backref='doctor')
 
-
+# ==================== PATIENT MODEL ====================
 class Patient(db.Model):
     """
-    Patient Model - Stores patient-specific information
-    
-    Attributes:
-        id (int): Primary key, unique identifier for the patient
-        user_id (int): Foreign key linking to User model
-        contact_info (str): Patient's contact information
-        age (int): Patient's age
-        gender (str): Patient's gender
+    Patient profile table - stores patient medical info
+    Connected to User table through user_id
     """
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    __tablename__ = 'patient'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False, unique=True)
     contact_info = db.Column(db.String(200))
     age = db.Column(db.Integer)
     gender = db.Column(db.String(10))
+    
+    # One patient can book multiple appointments
+    appointments = db.relationship('Appointment', backref='patient', lazy='dynamic', cascade='all, delete-orphan')
+    
+    def get_patient_name(self):
+        """Retrieve patient name from user table"""
+        return self.user.username if self.user else 'Unknown Patient'
+    
+    def __repr__(self):
+        return f'<Patient ID:{self.id} Age:{self.age}>'
 
-    # Relationship: One Patient can have multiple Appointments
-    appointments = db.relationship('Appointment', backref='patient')
 
-
+# ==================== APPOINTMENT MODEL ====================
 class Appointment(db.Model):
     """
-    Appointment Model - Represents appointments between doctors and patients
-    
-    Attributes:
-        id (int): Primary key, unique identifier for the appointment
-        doctor_id (int): Foreign key linking to Doctor model
-        patient_id (int): Foreign key linking to Patient model
-        date (date): Date of the appointment
-        time (time): Time of the appointment
-        status (str): Appointment status (e.g., 'Booked', 'Completed', 'Cancelled')
+    Appointment booking table
+    Links doctors and patients with scheduled date/time
     """
-    id = db.Column(db.Integer, primary_key=True)
+    __tablename__ = 'appointment'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
     doctor_id = db.Column(db.Integer, db.ForeignKey('doctor.id'), nullable=False)
     patient_id = db.Column(db.Integer, db.ForeignKey('patient.id'), nullable=False)
-    date = db.Column(db.Date, nullable=False)
+    date = db.Column(db.Date, nullable=False, index=True)
     time = db.Column(db.Time, nullable=False)
-    status = db.Column(db.String(20), default='Booked')
+    status = db.Column(db.String(20), default='Booked')  # Booked, Completed, Cancelled
+    
+    # Each appointment can have one treatment record
+    treatment = db.relationship('Treatment', backref='appointment', uselist=False, cascade='all, delete-orphan')
+    
+    def is_completed(self):
+        """Check if appointment is marked as completed"""
+        return self.status == 'Completed'
+    
+    def is_cancelled(self):
+        """Check if appointment was cancelled"""
+        return self.status == 'Cancelled'
+    
+    def __repr__(self):
+        return f'<Appointment {self.id}: Dr.{self.doctor_id} - Patient.{self.patient_id} on {self.date}>'
 
-    # Relationship: One Appointment can have one Treatment record
-    treatment = db.relationship('Treatment', backref='appointment', uselist=False)
 
-
+# ==================== TREATMENT MODEL ====================
 class Treatment(db.Model):
     """
-    Treatment Model - Stores medical treatment records for appointments
-    
-    Attributes:
-        id (int): Primary key, unique identifier for the treatment record
-        appointment_id (int): Foreign key linking to Appointment model
-        diagnosis (str): Medical diagnosis
-        prescription (str): Prescribed medications and treatment plan
-        notes (str): Additional medical notes
+    Medical treatment records
+    Stores diagnosis, prescription, and notes for each appointment
     """
-    id = db.Column(db.Integer, primary_key=True)
-    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False)
-    diagnosis = db.Column(db.Text)
-    prescription = db.Column(db.Text)
-    notes = db.Column(db.Text)
+    __tablename__ = 'treatment'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    appointment_id = db.Column(db.Integer, db.ForeignKey('appointment.id'), nullable=False, unique=True)
+    diagnosis = db.Column(db.Text)  # Doctor's diagnosis
+    prescription = db.Column(db.Text)  # Prescribed medicines
+    notes = db.Column(db.Text)  # Additional medical notes (can be JSON)
+    
+    def has_prescription(self):
+        """Check if prescription was provided"""
+        return bool(self.prescription)
+    
+    def __repr__(self):
+        return f'<Treatment for Appointment {self.appointment_id}>'
 
 
+# ==================== DEPARTMENT MODEL ====================
 class Department(db.Model):
     """
-    Department Model - Represents hospital departments
-    
-    Attributes:
-        id (int): Primary key, unique identifier for the department
-        name (str): Department name (e.g., Cardiology, Emergency)
-        description (str): Department description and details
+    Hospital departments table
+    Stores department names and descriptions
     """
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(100), nullable=False)
-    description = db.Column(db.Text)      
+    __tablename__ = 'department'
+    
+    id = db.Column(db.Integer, primary_key=True, autoincrement=True)
+    name = db.Column(db.String(100), nullable=False, unique=True)
+    description = db.Column(db.Text)
+    
+    def __repr__(self):
+        return f'<Department: {self.name}>'
 
 
-# Ensure `db` is properly initialized and exported
+# Export all models
 __all__ = ['db', 'User', 'Doctor', 'Patient', 'Appointment', 'Treatment', 'Department']

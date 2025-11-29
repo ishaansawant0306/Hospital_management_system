@@ -1,13 +1,6 @@
 """
-Authentication Routes Module
-
-This module handles all authentication-related endpoints for the Hospital Management System.
-It includes user registration, login, and admin dashboard functionality.
-
-Endpoints:
-    - POST /register: Register a new patient user
-    - POST /login: Authenticate user and return JWT token
-    - GET /dashboard: Retrieve admin dashboard statistics (Admin only)
+Authentication Routes
+Handles user registration, login, and dashboard access
 """
 
 from flask import Blueprint, request, jsonify, render_template, redirect, url_for
@@ -17,165 +10,227 @@ from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identi
 
 
 # Create Blueprint for authentication routes
+# Blueprint helps organize related routes together
+# All routes in this file will be prefixed with /api (configured in main.py)
 auth_bp = Blueprint('auth_bp', __name__)
 
+
+# ========== PATIENT REGISTRATION ENDPOINT ==========
 @auth_bp.route('/register', methods=['GET', 'POST'])
 def register():
-    # If the client requests the register page, serve the template
-    if request.method == 'GET':
-        return render_template('register.html')
     """
-    Register a new patient user.
+    Register a new patient user
     
-    Expects JSON payload with:
-        - username (str): Unique username
-        - email (str): User's email address
-        - password (str): Password to be hashed
-        - contact_info (str, optional): Patient's contact information
-        - age (int, optional): Patient's age
-        - gender (str, optional): Patient's gender
+    Handles both GET (serve registration page) and POST (process registration)
+    
+    POST expects JSON with:
+        - email (required): User's email address
+        - password (required): User's password (will be hashed)
+        - username (optional): Display name (defaults to email prefix)
+        - contact_info (optional): Phone number or contact details
+        - age (optional): Patient's age
+        - gender (optional): Patient's gender
     
     Returns:
         - 201: Patient registered successfully
-        - 400: Username already exists
+        - 400: Missing required fields or email already exists
     """
-    # Accept either JSON or form-encoded data (helps when form posts from simple HTML page)
-    # Use silent=True to avoid raising a BadRequest when Content-Type is not JSON
+    
+    # If GET request, serve the registration HTML page
+    if request.method == 'GET':
+        return render_template('register.html')
+    
+    # Handle POST request (registration submission)
+    # Accept both JSON and form-encoded data
+    # silent=True prevents error when Content-Type is not application/json
     data = request.get_json(silent=True) or request.form.to_dict()
 
-    # Required fields
+    # Extract and validate required fields
     email = data.get('email')
     password = data.get('password')
+    
+    # Check if required fields are present
     if not email or not password:
         return jsonify({'msg': 'Email and password are required'}), 400
 
-    # Use email as username if username not provided
+    # Generate username from email if not provided
+    # Example: "john@example.com" becomes "john"
     username = data.get('username') or email.split('@')[0]
 
     # Check if email already exists in database
+    # This prevents duplicate accounts
     if User.query.filter_by(email=email).first():
         return jsonify({'msg': 'Email already registered'}), 400
 
-    # Check if username already exists in database and adjust if necessary
+    # Check if username is already taken
+    # If taken, append a number to make it unique
     if User.query.filter_by(username=username).first():
-        # append a numeric suffix until unique
         base = username
         i = 1
+        # Keep incrementing until we find an available username
         while User.query.filter_by(username=f"{base}{i}").first():
             i += 1
         username = f"{base}{i}"
 
     # Hash the password for security
+    # Never store plain text passwords in database!
+    # Werkzeug uses pbkdf2:sha256 by default
     hashed_pw = generate_password_hash(password)
 
-    # Create new User record with Patient role
+    # Create new User record
+    # All patients have role='Patient'
     user = User(username=username, email=email, password=hashed_pw, role='Patient')
     db.session.add(user)
-    db.session.commit()
+    db.session.commit()  # Commit to get user.id
 
-    # Create associated Patient record with additional information
-    # Normalize optional patient fields
+    # Create associated Patient profile
+    # Extract optional patient-specific fields
+    # Use 'or' operator to handle missing fields gracefully
     contact_info = data.get('contact_info') or data.get('phone') or None
     age = data.get('age') or None
     gender = data.get('gender') or None
 
+    # Create Patient record linked to User
     patient = Patient(user_id=user.id, contact_info=contact_info, age=age, gender=gender)
     db.session.add(patient)
     db.session.commit()
 
-    # If the request was a browser form POST, redirect back to the login page
+    # If request came from HTML form, redirect to login page
+    # Otherwise, return JSON response (for API clients)
     if request.method == 'POST' and request.form:
         return redirect(url_for('auth_bp.login')) if False else redirect('/')
 
     return jsonify({'msg': 'Patient registered successfully'}), 201
 
+
+# ========== LOGIN ENDPOINT ==========
 @auth_bp.route('/login', methods=['POST'])
 def login():
+    """
+    Authenticate user and return JWT token
+    
+    Expects JSON with:
+        - email (str): User's email address
+        - password (str): User's password
+    
+    Returns:
+        - 200: Login successful with JWT token
+        - 400: Missing email or password
+        - 401: Invalid credentials
+        - 403: User is blacklisted
+        - 500: Server error
+    """
     try:
+        # Parse JSON request body
         data = request.get_json()
+        
+        # Validate required fields
         if not data.get('email') or not data.get('password'):
             return jsonify({'msg': 'Email and password are required'}), 400
 
+        # Look up user by email
         user = User.query.filter_by(email=data['email']).first()
+        
+        # Verify user exists and password is correct
         if user and check_password_hash(user.password, data['password']):
+            # Check if user is blacklisted
+            # Blacklisted users cannot login
             if user.is_blacklisted:
                 return jsonify({'msg': 'You cannot login. You have been blacklisted'}), 403
 
+            # Create JWT access token
+            # identity: unique user identifier (user ID as string)
+            # additional_claims: extra data stored in token (role, username)
             token = create_access_token(
                 identity=str(user.id),
                 additional_claims={'role': user.role, 'username': user.username}
             )
+            
+            # Return token and user information
             return jsonify({
                 'access_token': token,
-                'token_type': 'Bearer',
-                'role': user.role,
+                'token_type': 'Bearer',  # Standard token type for Authorization header
+                'role': user.role,  # Used by frontend to determine which dashboard to show
                 'user_id': user.id
             }), 200
 
-        # Dummy fallback
+        # ========== FALLBACK: DUMMY USERS FOR TESTING ==========
+        # This section provides hardcoded test accounts
+        # Useful for development when database is empty
+        # TODO: Remove this in production!
         dummy_users = {
             "admin@hospital.com": {"password": "admin123", "role": "Admin"},
             "doctor@hospital.com": {"password": "doc123", "role": "Doctor"},
             "patient@hospital.com": {"password": "pat123", "role": "Patient"}
         }
+        
         email = data.get('email')
         password = data.get('password')
         user = dummy_users.get(email)
+        
+        # Check if credentials match dummy user
         if user and user["password"] == password:
+            # Create token for dummy user
             token = create_access_token(
-                identity=f'dummy:{email}',
+                identity=f'dummy:{email}',  # Special identity format for dummy users
                 additional_claims={'role': user['role'], 'username': email.split('@')[0]}
             )
             return jsonify({
                 'access_token': token,
                 'token_type': 'Bearer',
                 'role': user['role'],
-                'user_id': None
+                'user_id': None  # Dummy users don't have database IDs
             }), 200
 
+        # If we reach here, credentials are invalid
         return jsonify({'msg': 'Invalid credentials'}), 401
 
     except Exception as e:
+        # Catch any unexpected errors
         import traceback
-        traceback.print_exc()  
+        traceback.print_exc()  # Print full error trace for debugging
         return jsonify({'msg': 'Server error', 'error': str(e)}), 500
 
 
+# ========== ADMIN DASHBOARD ENDPOINT ==========
 @auth_bp.route('/dashboard', methods=['GET'])
-@jwt_required()
+@jwt_required()  # Requires valid JWT token in Authorization header
 def admin_dashboard():
     """
-    Retrieve admin dashboard statistics.
+    Get admin dashboard statistics
     
-    Requires:
-        - JWT token in Authorization header (format: "Bearer <token>")
-        - User role must be 'Admin'
+    This endpoint is protected - requires JWT token with Admin role.
+    Returns counts of patients, doctors, and appointments.
+    
+    Headers required:
+        Authorization: Bearer <jwt_token>
     
     Returns:
-        - 200: Dashboard statistics (total patients, doctors, appointments)
-        - 403: Unauthorized - User is not an admin
+        - 200: Dashboard statistics
+        - 403: Unauthorized (not an admin)
     """
-    # Get current user ID from JWT token (the identity we set in create_access_token)
+    
+    # Extract user ID from JWT token
+    # This is the 'identity' we set when creating the token
     current_user_id = get_jwt_identity()
     
-    # Get additional claims (role, username) from JWT token
+    # Get additional claims from JWT token
+    # Claims include role, username, etc.
     claims = get_jwt()
     current_role = claims.get('role')
 
-    # Check if user has admin role
+    # Verify user has admin role
+    # Only admins can access dashboard statistics
     if current_role != 'Admin':
         return jsonify({"error": "Unauthorized - Admin access required"}), 403
 
-    # Count total patients in database
+    # Query database for statistics
+    # Count total records in each table
     total_patients = Patient.query.count()
-    
-    # Count total doctors in database
     total_doctors = Doctor.query.count()
-    
-    # Count total appointments in database
     total_appointments = Appointment.query.count()
 
-    # Return dashboard statistics
+    # Return statistics as JSON
     return jsonify({
         "patients": total_patients,
         "doctors": total_doctors,
