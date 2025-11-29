@@ -114,7 +114,8 @@ def send_daily_reminders():
     
     # Query database for all appointments scheduled for today
     # NOTE: Celery tasks run in Flask app context (configured in app_config.py)
-    appointments = Appointment.query.filter_by(date=today).all()
+    # FIX: Only select 'Booked' appointments to avoid reminders for completed/cancelled ones
+    appointments = Appointment.query.filter_by(date=today, status='Booked').all()
     
     # Debug logging to track task execution
     print(f"DEBUG: Checking for appointments on {today}")

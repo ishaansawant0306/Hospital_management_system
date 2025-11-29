@@ -1,0 +1,4 @@
+Date,Doctor,Diagnosis,Prescription,Notes
+2025-11-27,Dr. ishaan sawant,1,1,"{""visitType"": ""1"", ""testDone"": ""1"", ""medicines"": [{""name"": ""1"", ""dosage"": """"}], ""notes"": """"}"
+2025-12-02,Dr. ishaan sawant,4,4,"{""visitType"": ""4"", ""testDone"": ""4"", ""medicines"": [{""name"": ""4"", ""dosage"": ""4""}], ""notes"": """"}"
+2025-12-01,Dr. ishaan sawant,3,3,"{""visitType"": ""3"", ""testDone"": ""3"", ""medicines"": [{""name"": ""3"", ""dosage"": ""3""}], ""notes"": """"}"
